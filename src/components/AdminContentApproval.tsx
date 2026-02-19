@@ -63,9 +63,15 @@ const AdminContentApproval = () => {
 
   const handleApprove = async (videoId: string) => {
     setActionLoading(videoId + "_approve");
+    const updatePayload = {
+      status: "approved",
+      admin_approved: true,
+      rejection_reason: null,
+      visibility: "public",
+    };
     const { error } = await supabase
       .from("videos")
-      .update({ status: "approved", admin_approved: true, rejection_reason: null })
+      .update(updatePayload)
       .eq("id", videoId);
 
     if (error) {
