@@ -1,0 +1,24 @@
+{
+  "name": "Habesha Streams",
+  "short_name": "HS",
+  "description": "The premier East African streaming platform",
+  "icons": [
+    {
+      "src": "/favicon-base.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon-base.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#3E2723",
+  "background_color": "#3E2723",
+  "display": "standalone",
+  "start_url": "/",
+  "orientation": "portrait"
+}
