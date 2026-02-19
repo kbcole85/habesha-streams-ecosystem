@@ -2,95 +2,84 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/* Habesha Streams — East African OTT Design System
+   All colors in HSL. Dark mode default. Cinematic premium aesthetic.
 */
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Core palette — deep cinematic dark */
+    --background: 20 15% 5%;
+    --foreground: 40 15% 92%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 20 15% 8%;
+    --card-foreground: 40 15% 90%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 20 15% 9%;
+    --popover-foreground: 40 15% 90%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Deep Habesha Gold */
+    --primary: 42 88% 48%;
+    --primary-foreground: 20 15% 5%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Emerald (cultural green) */
+    --secondary: 155 55% 22%;
+    --secondary-foreground: 40 15% 92%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted dark surfaces */
+    --muted: 20 12% 12%;
+    --muted-foreground: 40 10% 55%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Gold accent */
+    --accent: 42 88% 55%;
+    --accent-foreground: 20 15% 5%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Destructive */
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 40 15% 92%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 20 12% 16%;
+    --input: 20 12% 14%;
+    --ring: 42 88% 48%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Custom tokens */
+    --gold: 42 88% 48%;
+    --gold-bright: 42 88% 62%;
+    --gold-dark: 38 75% 32%;
+    --emerald: 155 55% 22%;
+    --emerald-bright: 155 55% 35%;
+    --earth: 25 45% 22%;
+    --earth-warm: 28 55% 35%;
+    --surface: 20 15% 8%;
+    --surface-raised: 20 15% 11%;
+    --surface-overlay: 20 15% 14%;
+    --habesha-red: 0 65% 38%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    /* Gradients */
+    --gradient-hero: linear-gradient(180deg, hsla(20, 15%, 5%, 0) 0%, hsla(20, 15%, 5%, 0.6) 50%, hsl(20, 15%, 5%) 100%);
+    --gradient-card-hover: linear-gradient(180deg, hsla(42, 88%, 48%, 0.08) 0%, transparent 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(42, 88%, 48%), hsl(38, 75%, 32%));
+    --gradient-emerald: linear-gradient(135deg, hsl(155, 55%, 22%), hsl(155, 55%, 15%));
+    --gradient-section: linear-gradient(180deg, hsl(20, 15%, 5%) 0%, hsl(20, 15%, 7%) 50%, hsl(20, 15%, 5%) 100%);
 
-    --sidebar-primary: 240 5.9% 10%;
+    /* Sidebar */
+    --sidebar-background: 20 15% 6%;
+    --sidebar-foreground: 40 15% 75%;
+    --sidebar-primary: 42 88% 48%;
+    --sidebar-primary-foreground: 20 15% 5%;
+    --sidebar-accent: 20 15% 11%;
+    --sidebar-accent-foreground: 40 15% 88%;
+    --sidebar-border: 20 12% 14%;
+    --sidebar-ring: 42 88% 48%;
 
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Shadows */
+    --shadow-gold: 0 0 40px hsla(42, 88%, 48%, 0.25);
+    --shadow-card: 0 8px 32px hsla(0, 0%, 0%, 0.6);
+    --shadow-elevated: 0 20px 60px hsla(0, 0%, 0%, 0.8);
   }
 }
 
@@ -101,5 +90,188 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3 {
+    font-family: 'Cinzel', serif;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--gold));
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--gold-bright));
+  }
+}
+
+@layer utilities {
+  /* Habesha textile pattern overlay (subtle SVG crosshatch inspired by kemis fabric) */
+  .habesha-pattern {
+    background-image:
+      repeating-linear-gradient(
+        45deg,
+        hsla(42, 88%, 48%, 0.03) 0px,
+        hsla(42, 88%, 48%, 0.03) 1px,
+        transparent 1px,
+        transparent 10px
+      ),
+      repeating-linear-gradient(
+        -45deg,
+        hsla(42, 88%, 48%, 0.03) 0px,
+        hsla(42, 88%, 48%, 0.03) 1px,
+        transparent 1px,
+        transparent 10px
+      );
+  }
+
+  .text-gold {
+    color: hsl(var(--gold));
+  }
+
+  .text-gold-bright {
+    color: hsl(var(--gold-bright));
+  }
+
+  .text-emerald {
+    color: hsl(var(--emerald-bright));
+  }
+
+  .bg-gold {
+    background: hsl(var(--gold));
+  }
+
+  .bg-surface {
+    background: hsl(var(--surface));
+  }
+
+  .bg-surface-raised {
+    background: hsl(var(--surface-raised));
+  }
+
+  .bg-surface-overlay {
+    background: hsl(var(--surface-overlay));
+  }
+
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .gradient-gold {
+    background: var(--gradient-gold);
+  }
+
+  .gradient-emerald {
+    background: var(--gradient-emerald);
+  }
+
+  .shadow-gold {
+    box-shadow: var(--shadow-gold);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .border-gold {
+    border-color: hsl(var(--gold));
+  }
+
+  .border-gold\/30 {
+    border-color: hsla(42, 88%, 48%, 0.3);
+  }
+
+  .cinzel {
+    font-family: 'Cinzel', serif;
+  }
+
+  /* Content card hover effect */
+  .content-card {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .content-card:hover {
+    transform: scale(1.04) translateY(-4px);
+    box-shadow: 0 20px 60px hsla(0, 0%, 0%, 0.8), 0 0 30px hsla(42, 88%, 48%, 0.2);
+  }
+
+  /* Gold shimmer animation */
+  @keyframes gold-shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+
+  .gold-shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--gold-dark)) 0%,
+      hsl(var(--gold)) 30%,
+      hsl(var(--gold-bright)) 50%,
+      hsl(var(--gold)) 70%,
+      hsl(var(--gold-dark)) 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gold-shimmer 4s linear infinite;
+  }
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .animate-delay-100 { animation-delay: 0.1s; }
+  .animate-delay-200 { animation-delay: 0.2s; }
+  .animate-delay-300 { animation-delay: 0.3s; }
+  .animate-delay-400 { animation-delay: 0.4s; }
+  .animate-delay-500 { animation-delay: 0.5s; }
+
+  @keyframes pulse-gold {
+    0%, 100% { box-shadow: 0 0 0 0 hsla(42, 88%, 48%, 0.4); }
+    50% { box-shadow: 0 0 0 12px hsla(42, 88%, 48%, 0); }
+  }
+
+  .animate-pulse-gold {
+    animation: pulse-gold 2s infinite;
+  }
+
+  /* Gradient border */
+  .gradient-border {
+    position: relative;
+  }
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    background: var(--gradient-gold);
+    border-radius: inherit;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
   }
 }
