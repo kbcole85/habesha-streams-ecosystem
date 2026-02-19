@@ -11,7 +11,7 @@ const Navbar = () => {
   const [profileOpen, setProfileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, profile, role, subscription, signOut } = useAuth();
+  const { user, profile, role, stripeSubscription, signOut } = useAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -47,8 +47,8 @@ const Navbar = () => {
     navigate("/");
   };
 
-  const planLabel = subscription?.plan
-    ? `${subscription.plan.charAt(0).toUpperCase() + subscription.plan.slice(1)} Plan`
+  const planLabel = stripeSubscription?.plan
+    ? `${stripeSubscription.plan.charAt(0).toUpperCase() + stripeSubscription.plan.slice(1)} Plan`
     : null;
 
   return (
