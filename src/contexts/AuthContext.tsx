@@ -70,13 +70,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchProfileData = async (userId: string) => {
     try {
-      const [profileRes, roleRes, subRes] = await Promise.all([
+      const [profileRes, rolesRes, subRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", userId).single(),
-        supabase.from("user_roles").select("role").eq("user_id", userId).single(),
+        supabase.from("user_roles").select("role").eq("user_id", userId),
         supabase.from("subscriptions").select("*").eq("user_id", userId).eq("status", "active").maybeSingle(),
       ]);
       if (profileRes.data) setProfile(profileRes.data);
-      if (roleRes.data) setRole(roleRes.data.role);
+      if (rolesRes.data && rolesRes.data.length > 0) {
+        // Highest privilege wins: admin > creator > user
+        const PRIORITY: Record<string, number> = { admin: 3, creator: 2, user: 1 };
+        const top = rolesRes.data.reduce((best, cur) =>
+          (PRIORITY[cur.role] ?? 0) > (PRIORITY[best.role] ?? 0) ? cur : best
+        );
+        setRole(top.role);
+      }
       if (subRes.data) setSubscription(subRes.data);
     } catch {
       // silent
