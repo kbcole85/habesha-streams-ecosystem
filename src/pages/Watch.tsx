@@ -1,12 +1,15 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, TouchEvent } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   Play, Pause, Volume2, VolumeX, Volume1,
   Maximize, Minimize, SkipForward, SkipBack,
   Subtitles, Settings, ArrowLeft, ChevronRight,
   Star, Clock, Eye, List, X, Check, Monitor,
-  ThumbsUp, Share2, Bookmark, MoreHorizontal
+  ThumbsUp, Share2, Bookmark, MoreHorizontal,
+  FastForward, Rewind, Smartphone, RotateCcw
 } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import thumb1 from "@/assets/thumb-1.jpg";
 import thumb2 from "@/assets/thumb-2.jpg";
 import thumb3 from "@/assets/thumb-3.jpg";
@@ -59,12 +62,20 @@ const WATERMARK_POSITIONS = [
   "top-1/3 left-1/4","top-2/3 right-1/4",
 ];
 
+/* ──────────────── Haptic helper (no-op on web) ──────────────── */
+const haptic = async (style: ImpactStyle = ImpactStyle.Light) => {
+  if (Capacitor.isNativePlatform()) {
+    await Haptics.impact({ style }).catch(() => {});
+  }
+};
+
 /* ──────────────── Main Component ──────────────── */
 const Watch = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const content = contentDB[id ?? "1"] ?? contentDB["1"];
   const totalSec = content.durationSec;
+  const isNative = Capacitor.isNativePlatform();
 
   /* Player state */
   const [playing, setPlaying]       = useState(false);
@@ -73,7 +84,7 @@ const Watch = () => {
   const [muted, setMuted]           = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const [buffered, setBuffered]     = useState(35); // simulated buffer %
+  const [buffered, setBuffered]     = useState(35);
 
   /* UI panels */
   const [subtitleLang, setSubtitleLang]   = useState("English");
@@ -85,6 +96,12 @@ const Watch = () => {
   const [showEpisodes, setShowEpisodes]         = useState(false);
   const [sidebarOpen, setSidebarOpen]           = useState(true);
   const [isSaved, setIsSaved]               = useState(false);
+
+  /* Mobile touch gestures */
+  const [skipIndicator, setSkipIndicator] = useState<null | "forward" | "back">(null);
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const lastTapRef    = useRef<{ x: number; time: number } | null>(null);
+  const skipTimerRef  = useRef<NodeJS.Timeout | null>(null);
 
   /* Watermark */
   const [watermarkPos, setWatermarkPos] = useState(0);
@@ -102,7 +119,6 @@ const Watch = () => {
           if (s >= totalSec) { setPlaying(false); return totalSec; }
           return s + 1 * speed;
         });
-        // slowly fill buffer
         setBuffered(b => Math.min(100, b + 0.02));
       }, 1000);
     }
@@ -120,7 +136,7 @@ const Watch = () => {
 
   useEffect(() => { resetControlsTimer(); }, [playing]);
 
-  /* ── Watermark rotation every 30s ── */
+  /* ── Watermark rotation ── */
   useEffect(() => {
     const t = setInterval(() => {
       setWatermarkPos(p => (p + 1) % WATERMARK_POSITIONS.length);
@@ -128,7 +144,7 @@ const Watch = () => {
     return () => clearInterval(t);
   }, []);
 
-  /* ── Keyboard shortcuts ── */
+  /* ── Keyboard shortcuts (desktop) ── */
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
@@ -146,6 +162,66 @@ const Watch = () => {
     return () => window.removeEventListener("keydown", handler);
   }, [totalSec]);
 
+  /* ──────────────── Touch gesture handlers ──────────────── */
+
+  const showSkipFlash = (dir: "forward" | "back") => {
+    setSkipIndicator(dir);
+    if (skipTimerRef.current) clearTimeout(skipTimerRef.current);
+    skipTimerRef.current = setTimeout(() => setSkipIndicator(null), 700);
+  };
+
+  const handleTouchStart = (e: TouchEvent<HTMLDivElement>) => {
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+  };
+
+  const handleTouchEnd = (e: TouchEvent<HTMLDivElement>) => {
+    if (!touchStartRef.current) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartRef.current.x;
+    const dy = t.clientY - touchStartRef.current.y;
+    const dt = Date.now() - touchStartRef.current.time;
+    const playerWidth = playerRef.current?.offsetWidth ?? 400;
+
+    // ── Double-tap to seek (left side = -10s, right side = +10s) ──
+    const now = Date.now();
+    if (Math.abs(dx) < 15 && Math.abs(dy) < 15 && dt < 250) {
+      if (lastTapRef.current && now - lastTapRef.current.time < 350) {
+        const isRightSide = lastTapRef.current.x > playerWidth / 2;
+        if (isRightSide) {
+          setCurrentSec(s => Math.min(totalSec, s + 10));
+          showSkipFlash("forward");
+          haptic(ImpactStyle.Medium);
+        } else {
+          setCurrentSec(s => Math.max(0, s - 10));
+          showSkipFlash("back");
+          haptic(ImpactStyle.Medium);
+        }
+        lastTapRef.current = null;
+        resetControlsTimer();
+        return;
+      }
+      lastTapRef.current = { x: t.clientX, time: now };
+      // single tap: toggle play/controls
+      closeAllMenus();
+      setPlaying(p => !p);
+      haptic(ImpactStyle.Light);
+      resetControlsTimer();
+      return;
+    }
+
+    // ── Horizontal swipe to seek ──
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5 && dt < 400) {
+      const seekSec = Math.round((dx / playerWidth) * 60); // 60s max per full swipe
+      setCurrentSec(s => Math.max(0, Math.min(totalSec, s + seekSec)));
+      showSkipFlash(dx > 0 ? "forward" : "back");
+      haptic(ImpactStyle.Light);
+      resetControlsTimer();
+    }
+
+    touchStartRef.current = null;
+  };
+
   const closeAllMenus = () => {
     setShowQualityMenu(false);
     setShowSubtitleMenu(false);
@@ -162,6 +238,7 @@ const Watch = () => {
   const progress = (currentSec / totalSec) * 100;
   const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
   const currentVolume = muted ? 0 : volume;
+
 
   /* ──────────────── Render ──────────────── */
   return (
@@ -205,10 +282,12 @@ const Watch = () => {
           {/* ─── Video Player ─── */}
           <div
             ref={playerRef}
-            className="relative flex-1 bg-black overflow-hidden cursor-pointer select-none"
+            className="relative flex-1 bg-black overflow-hidden cursor-pointer select-none video-player"
             onMouseMove={resetControlsTimer}
             onMouseLeave={() => { if (playing) setShowControls(false); }}
-            onClick={() => { closeAllMenus(); setPlaying(p => !p); resetControlsTimer(); }}
+            onClick={() => { if (!isNative) { closeAllMenus(); setPlaying(p => !p); resetControlsTimer(); } }}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
           >
             {/* Poster / Video background */}
             <img
@@ -252,7 +331,32 @@ const Watch = () => {
               </div>
             )}
 
-            {/* ── Skip indicators (flash on arrow key) ── */}
+            {/* ── Skip indicators (double-tap / swipe flash) ── */}
+            {skipIndicator && (
+              <div className={`absolute inset-y-0 ${skipIndicator === "forward" ? "right-0 left-1/2" : "left-0 right-1/2"} flex items-center ${skipIndicator === "forward" ? "justify-end pr-8" : "justify-start pl-8"} pointer-events-none z-40`}>
+                <div className="flex flex-col items-center gap-1 animate-fade-in">
+                  <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                    {skipIndicator === "forward"
+                      ? <FastForward className="w-7 h-7 text-white fill-white" />
+                      : <Rewind className="w-7 h-7 text-white fill-white" />
+                    }
+                  </div>
+                  <span className="text-white text-xs font-bold drop-shadow">
+                    {skipIndicator === "forward" ? "+10s" : "-10s"}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* ── Double-tap hint (shown briefly on first load, native only) ── */}
+            {isNative && !playing && currentSec === 0 && (
+              <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+                <div className="flex items-center gap-3 px-3 py-1.5 bg-black/50 backdrop-blur-sm rounded-full border border-white/10">
+                  <Smartphone className="w-3 h-3 text-white/60" />
+                  <span className="text-[10px] text-white/60">Double-tap left/right to skip · Swipe to seek</span>
+                </div>
+              </div>
+            )}
 
             {/* ── Controls Overlay ── */}
             <div
