@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { getDeviceFingerprint, getDeviceName } from "@/lib/deviceFingerprint";
 
 interface Profile {
   id: string;
@@ -32,6 +33,8 @@ interface AuthContextValue {
   stripeSubscription: StripeSubscription;
   role: string | null;
   loading: boolean;
+  deviceBlocked: boolean;
+  deviceBlockReason: string | null;
   signUp: (email: string, password: string, displayName: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -62,6 +65,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [stripeSubscription, setStripeSubscription] = useState<StripeSubscription>(DEFAULT_STRIPE_SUB);
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deviceBlocked, setDeviceBlocked] = useState(false);
+  const [deviceBlockReason, setDeviceBlockReason] = useState<string | null>(null);
 
   const fetchProfileData = async (userId: string) => {
     try {
@@ -93,6 +98,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const runDeviceValidation = useCallback(async () => {
+    try {
+      const fingerprint = await getDeviceFingerprint();
+      const deviceName = getDeviceName();
+      const { data, error } = await supabase.functions.invoke("device-validate", {
+        body: { action: "validate", deviceFingerprint: fingerprint, deviceName },
+      });
+      if (!error && data?.status === "blocked") {
+        setDeviceBlocked(true);
+        setDeviceBlockReason(data.reason ?? "This account is linked to a different device.");
+        await supabase.auth.signOut();
+      } else {
+        setDeviceBlocked(false);
+        setDeviceBlockReason(null);
+      }
+    } catch {
+      // Non-critical — allow access if function unavailable
+    }
+  }, []);
+
   const refreshProfile = async () => {
     if (user) await fetchProfileData(user.id);
   };
@@ -104,13 +129,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(newSession?.user ?? null);
         if (newSession?.user) {
           await fetchProfileData(newSession.user.id);
-          // Check Stripe subscription on auth state change (defer so token is ready)
           setTimeout(() => checkSubscription(), 500);
+          setTimeout(() => runDeviceValidation(), 800);
         } else {
           setProfile(null);
           setRole(null);
           setSubscription(null);
           setStripeSubscription(DEFAULT_STRIPE_SUB);
+          setDeviceBlocked(false);
+          setDeviceBlockReason(null);
         }
         setLoading(false);
       }
@@ -122,13 +149,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (currentSession?.user) {
         fetchProfileData(currentSession.user.id).finally(() => setLoading(false));
         checkSubscription();
+        runDeviceValidation();
       } else {
         setLoading(false);
       }
     });
 
     return () => authSub.unsubscribe();
-  }, [checkSubscription]);
+  }, [checkSubscription, runDeviceValidation]);
 
   const signUp = async (email: string, password: string, displayName: string) => {
     const { error } = await supabase.auth.signUp({
@@ -141,6 +169,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!error) {
+      // Register device on first successful login (non-blocking)
+      setTimeout(async () => {
+        try {
+          const fingerprint = await getDeviceFingerprint();
+          const deviceName = getDeviceName();
+          await supabase.functions.invoke("device-validate", {
+            body: { action: "validate", deviceFingerprint: fingerprint, deviceName },
+          });
+        } catch {
+          // non-critical
+        }
+      }, 600);
+    }
     return { error };
   };
 
@@ -150,12 +192,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setRole(null);
     setSubscription(null);
     setStripeSubscription(DEFAULT_STRIPE_SUB);
+    setDeviceBlocked(false);
+    setDeviceBlockReason(null);
   };
 
   return (
     <AuthContext.Provider value={{
       user, session, profile, subscription, stripeSubscription,
-      role, loading, signUp, signIn, signOut, refreshProfile, checkSubscription
+      role, loading, deviceBlocked, deviceBlockReason,
+      signUp, signIn, signOut, refreshProfile, checkSubscription
     }}>
       {children}
     </AuthContext.Provider>
