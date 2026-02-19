@@ -1206,9 +1206,9 @@ const ParentalControlsTab = () => {
                 <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-2">Maximum Content Rating</label>
                 <div className="space-y-2">
                   {ratings.map(r => (
-                    <label key={r} className="flex items-center gap-3 cursor-pointer">
+                    <label key={r} onClick={() => setRating(r)} className="flex items-center gap-3 cursor-pointer">
                       <div className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 transition-colors ${rating === r ? "border-gold bg-gold" : "border-gold/30"}`} />
-                      <span className="text-sm text-foreground">{r}</span>
+                      <span className={`text-sm ${rating === r ? "text-foreground font-medium" : "text-muted-foreground"}`}>{r}</span>
                     </label>
                   ))}
                 </div>

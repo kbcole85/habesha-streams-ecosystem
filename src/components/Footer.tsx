@@ -1,5 +1,11 @@
 import { Link } from "react-router-dom";
-import { Play, Instagram, Facebook, Youtube, Mail, Globe, ChevronDown } from "lucide-react";
+import { Play, Instagram, Facebook, Youtube, Mail, Globe } from "lucide-react";
+
+const TikTokIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
+    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.78a4.85 4.85 0 01-1.01-.09z" />
+  </svg>
+);
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -59,9 +65,9 @@ const Footer = () => {
             <ul className="space-y-3">
               {[
                 { label: "Help Center", href: "#" },
-                { label: "Manage Account", href: "/profile" },
+                { label: "Manage Account", href: "/account" },
                 { label: "Subscription Plans", href: "/plans" },
-                { label: "Device Management", href: "/profile" },
+                { label: "Device Management", href: "/account" },
                 { label: "Report a Problem", href: "mailto:support@habeshastreams.com" },
               ].map((item) => (
                 <li key={item.label}>
@@ -129,15 +135,7 @@ const Footer = () => {
                 { Icon: Instagram, label: "Instagram", href: "https://instagram.com/habeshastreams" },
                 { Icon: Facebook, label: "Facebook", href: "https://facebook.com/habeshastreams" },
                 { Icon: Youtube, label: "YouTube", href: "https://youtube.com/@habeshastreams" },
-                {
-                  Icon: () => (
-                    <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
-                      <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.78a4.85 4.85 0 01-1.01-.09z" />
-                    </svg>
-                  ),
-                  label: "TikTok",
-                  href: "https://tiktok.com/@habeshastreams",
-                },
+                { Icon: TikTokIcon, label: "TikTok", href: "https://tiktok.com/@habeshastreams" },
               ].map(({ Icon, label, href }) => (
                 <a
                   key={label}
