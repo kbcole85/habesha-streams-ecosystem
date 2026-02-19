@@ -265,11 +265,13 @@ export type Database = {
           age_rating: string | null
           created_at: string
           creator_id: string
+          encoding_status: string
           full_description: string | null
           genre: string | null
           id: string
           monetization_type: string
           price: number | null
+          published_at: string | null
           rejection_reason: string | null
           release_date: string | null
           runtime: string | null
@@ -280,17 +282,20 @@ export type Database = {
           trailer_url: string | null
           updated_at: string
           video_url: string | null
+          visibility: string
         }
         Insert: {
           admin_approved?: boolean
           age_rating?: string | null
           created_at?: string
           creator_id: string
+          encoding_status?: string
           full_description?: string | null
           genre?: string | null
           id?: string
           monetization_type?: string
           price?: number | null
+          published_at?: string | null
           rejection_reason?: string | null
           release_date?: string | null
           runtime?: string | null
@@ -301,17 +306,20 @@ export type Database = {
           trailer_url?: string | null
           updated_at?: string
           video_url?: string | null
+          visibility?: string
         }
         Update: {
           admin_approved?: boolean
           age_rating?: string | null
           created_at?: string
           creator_id?: string
+          encoding_status?: string
           full_description?: string | null
           genre?: string | null
           id?: string
           monetization_type?: string
           price?: number | null
+          published_at?: string | null
           rejection_reason?: string | null
           release_date?: string | null
           runtime?: string | null
@@ -322,6 +330,7 @@ export type Database = {
           trailer_url?: string | null
           updated_at?: string
           video_url?: string | null
+          visibility?: string
         }
         Relationships: []
       }

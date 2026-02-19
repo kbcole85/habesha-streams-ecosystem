@@ -127,7 +127,7 @@ const VideoUploadModal = ({ onClose, onSuccess }: Props) => {
       const videoStorageUrl = videoPath; // store path, not public URL (private bucket)
 
       // 3. Insert video record
-      const { data: videoData, error: dbErr } = await supabase.from("videos").insert({
+      const insertPayload = {
         creator_id: user.id,
         title: form.title.trim(),
         short_description: form.short_description.trim() || null,
@@ -142,7 +142,11 @@ const VideoUploadModal = ({ onClose, onSuccess }: Props) => {
         video_url: videoStorageUrl,
         status: "pending",
         admin_approved: false,
-      }).select().single();
+        // New schema fields: private until admin approves, encoding assumed ready for direct upload
+        visibility: "private",
+        encoding_status: "ready",
+      };
+      const { data: videoData, error: dbErr } = await supabase.from("videos").insert(insertPayload).select().single();
 
       if (dbErr) throw dbErr;
 
