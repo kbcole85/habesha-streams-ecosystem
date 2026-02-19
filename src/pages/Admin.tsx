@@ -4,8 +4,12 @@ import Footer from "@/components/Footer";
 import {
   LayoutDashboard, Film, Users, DollarSign, Shield, Settings,
   TrendingUp, Upload, Eye, AlertTriangle, CheckCircle, Clock,
-  ChevronRight, BarChart2, Globe, Activity, Bell, Search
+  ChevronRight, BarChart2, Globe, Activity, Bell, Search,
+  Smartphone, RotateCcw, ShieldAlert, Loader2,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
 
 const stats = [
   { label: "Total Revenue", value: "$148,920", change: "+18.4%", positive: true, icon: DollarSign },
@@ -37,8 +41,160 @@ const sidebarItems = [
   { icon: DollarSign, label: "Finance", id: "finance" },
   { icon: TrendingUp, label: "Analytics", id: "analytics" },
   { icon: Shield, label: "Security", id: "security" },
+  { icon: Smartphone, label: "Devices", id: "devices" },
   { icon: Settings, label: "Settings", id: "settings" },
 ];
+
+
+// ── Device Management Panel ────────────────────────────────────────────────
+const DeviceManagementPanel = () => {
+  const [targetUserId, setTargetUserId] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState<Array<{
+    id: string; email: string; attempt_type: string; ip_address: string; created_at: string;
+  }>>([]);
+  const [loadingAttempts, setLoadingAttempts] = useState(false);
+
+  const loadLoginAttempts = async () => {
+    setLoadingAttempts(true);
+    const { data } = await supabase
+      .from("login_attempts")
+      .select("id, email, attempt_type, ip_address, created_at")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (data) setLoginAttempts(data);
+    setLoadingAttempts(false);
+  };
+
+  const resetDevice = async () => {
+    if (!targetUserId.trim()) {
+      toast({ title: "Enter a User ID", variant: "destructive" });
+      return;
+    }
+    setResetting(true);
+    try {
+      const { error } = await supabase.functions.invoke("device-validate", {
+        body: { action: "reset", targetUserId: targetUserId.trim() },
+      });
+      if (error) throw error;
+      toast({ title: "Device reset successfully", description: "User can now log in from a new device." });
+      setTargetUserId("");
+    } catch (err) {
+      toast({ title: "Reset failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    }
+    setResetting(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Reset Device */}
+        <div className="bg-surface border border-gold/10 rounded-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <RotateCcw className="w-4 h-4 text-gold" />
+            <h3 className="cinzel text-sm font-bold text-foreground">Reset User Device</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+            Deactivates a user's registered device session, allowing them to log in from a new device.
+            Use this when a user has lost or replaced their device.
+          </p>
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={targetUserId}
+              onChange={e => setTargetUserId(e.target.value)}
+              placeholder="Paste User UUID here…"
+              className="w-full px-3 py-2.5 text-xs bg-surface-raised border border-gold/15 focus:border-gold/50 rounded-sm text-foreground placeholder:text-muted-foreground outline-none"
+            />
+            <button
+              onClick={resetDevice}
+              disabled={resetting}
+              className="w-full flex items-center justify-center gap-2 py-2.5 gradient-gold text-background text-xs font-bold rounded-sm hover:opacity-90 transition-all disabled:opacity-50"
+            >
+              {resetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+              {resetting ? "Resetting…" : "Reset Device Lock"}
+            </button>
+          </div>
+        </div>
+
+        {/* Info Card */}
+        <div className="bg-surface border border-gold/10 rounded-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <ShieldAlert className="w-4 h-4 text-gold" />
+            <h3 className="cinzel text-sm font-bold text-foreground">Device Lock Policy</h3>
+          </div>
+          <ul className="space-y-2.5 text-xs text-muted-foreground">
+            {[
+              "Each account is bound to one device fingerprint on first login.",
+              "If a different device is detected, access is denied and logged.",
+              "The fingerprint is derived from browser + hardware signals.",
+              "Clearing cookies alone does NOT bypass the device lock.",
+              "Admins can reset any user's device from this panel.",
+            ].map((item, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <CheckCircle className="w-3 h-3 text-emerald-bright flex-shrink-0 mt-0.5" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* Login Attempts Log */}
+      <div className="bg-surface border border-gold/10 rounded-sm">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gold/10">
+          <h3 className="cinzel text-sm font-bold text-foreground">Login Attempt Log</h3>
+          <button
+            onClick={loadLoginAttempts}
+            disabled={loadingAttempts}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gold/20 text-gold rounded-sm hover:bg-gold hover:text-background transition-all"
+          >
+            {loadingAttempts ? <Loader2 className="w-3 h-3 animate-spin" /> : <Activity className="w-3 h-3" />}
+            Load Logs
+          </button>
+        </div>
+        {loginAttempts.length === 0 ? (
+          <div className="px-5 py-10 text-center text-xs text-muted-foreground">
+            Click "Load Logs" to view recent login attempts.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gold/5">
+                  <th className="px-5 py-3 text-left text-muted-foreground font-medium">Email</th>
+                  <th className="px-3 py-3 text-left text-muted-foreground font-medium">Type</th>
+                  <th className="px-3 py-3 text-left text-muted-foreground font-medium">IP Address</th>
+                  <th className="px-5 py-3 text-right text-muted-foreground font-medium">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loginAttempts.map((a) => (
+                  <tr key={a.id} className="border-b border-gold/5 hover:bg-surface-raised transition-colors">
+                    <td className="px-5 py-3 font-medium text-foreground">{a.email || "—"}</td>
+                    <td className="px-3 py-3">
+                      <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold ${
+                        a.attempt_type === "success" ? "bg-emerald/20 text-emerald-bright" :
+                        a.attempt_type === "device_mismatch" ? "bg-destructive/20 text-destructive" :
+                        "bg-gold/10 text-gold"
+                      }`}>
+                        {a.attempt_type}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-muted-foreground font-mono text-[10px]">{a.ip_address || "—"}</td>
+                    <td className="px-5 py-3 text-right text-muted-foreground">
+                      {new Date(a.created_at).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -249,6 +405,9 @@ const Admin = () => {
               </table>
             </div>
           </div>
+
+          {/* Devices tab */}
+          {activeTab === "devices" && <DeviceManagementPanel />}
         </main>
       </div>
     </div>
