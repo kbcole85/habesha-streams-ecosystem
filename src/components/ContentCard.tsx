@@ -1,4 +1,5 @@
-import { Play, Star, Clock, Badge } from "lucide-react";
+import { Play, Star, Clock } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export interface ContentItem {
   id: number;
@@ -19,7 +20,10 @@ interface ContentCardProps {
 
 const ContentCard = ({ item }: ContentCardProps) => {
   return (
-    <div className="content-card group relative rounded-sm overflow-hidden bg-surface cursor-pointer shadow-card">
+    <Link
+      to={`/watch/${item.id}`}
+      className="content-card group relative rounded-sm overflow-hidden bg-surface cursor-pointer shadow-card block"
+    >
       {/* Thumbnail */}
       <div className="relative aspect-[2/3] overflow-hidden">
         <img
@@ -77,7 +81,7 @@ const ContentCard = ({ item }: ContentCardProps) => {
           </div>
         </div>
       </div>
-    </div>
+    </Link>
   );
 };
 
