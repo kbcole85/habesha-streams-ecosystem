@@ -200,6 +200,98 @@ export type Database = {
         }
         Relationships: []
       }
+      video_tags: {
+        Row: {
+          id: string
+          tag_name: string
+          video_id: string
+        }
+        Insert: {
+          id?: string
+          tag_name: string
+          video_id: string
+        }
+        Update: {
+          id?: string
+          tag_name?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_tags_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      videos: {
+        Row: {
+          admin_approved: boolean
+          age_rating: string | null
+          created_at: string
+          creator_id: string
+          full_description: string | null
+          genre: string | null
+          id: string
+          monetization_type: string
+          price: number | null
+          rejection_reason: string | null
+          release_date: string | null
+          runtime: string | null
+          short_description: string | null
+          status: string
+          thumbnail_url: string | null
+          title: string
+          trailer_url: string | null
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          admin_approved?: boolean
+          age_rating?: string | null
+          created_at?: string
+          creator_id: string
+          full_description?: string | null
+          genre?: string | null
+          id?: string
+          monetization_type?: string
+          price?: number | null
+          rejection_reason?: string | null
+          release_date?: string | null
+          runtime?: string | null
+          short_description?: string | null
+          status?: string
+          thumbnail_url?: string | null
+          title: string
+          trailer_url?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          admin_approved?: boolean
+          age_rating?: string | null
+          created_at?: string
+          creator_id?: string
+          full_description?: string | null
+          genre?: string | null
+          id?: string
+          monetization_type?: string
+          price?: number | null
+          rejection_reason?: string | null
+          release_date?: string | null
+          runtime?: string | null
+          short_description?: string | null
+          status?: string
+          thumbnail_url?: string | null
+          title?: string
+          trailer_url?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: []
+      }
       watch_history: {
         Row: {
           content_id: string
