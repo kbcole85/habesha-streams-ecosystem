@@ -22,6 +22,7 @@ import thumb5 from "@/assets/thumb-5.jpg";
 import thumb6 from "@/assets/thumb-6.jpg";
 import thumb7 from "@/assets/thumb-7.jpg";
 import thumb8 from "@/assets/thumb-8.jpg";
+import PPVCheckoutButton from "@/components/PPVCheckoutButton";
 
 /* ──────────────── Paywall Overlay ──────────────── */
 
@@ -467,6 +468,20 @@ const Watch = () => {
             {/* ── Paywall overlay ── */}
             {showPaywall && !authLoading && (
               <PaywallOverlay isPastDue={isPastDue} contentTitle={content.title} />
+            )}
+
+            {/* ── PPV purchase overlay (for PPV items that the user hasn't bought) ── */}
+            {content.isPPV && !showPaywall && !authLoading && (
+              <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
+                <div className="text-center px-6">
+                  <span className="inline-block px-3 py-1 bg-habesha-red text-foreground text-[10px] font-bold uppercase tracking-widest rounded-sm mb-4">
+                    PPV · Live Event
+                  </span>
+                  <h3 className="cinzel text-xl font-black text-foreground mb-2">{content.title}</h3>
+                  <p className="text-sm text-muted-foreground mb-6 max-w-xs mx-auto">{content.description}</p>
+                  <PPVCheckoutButton eventTitle={content.title} variant="banner" />
+                </div>
+              </div>
             )}
 
             {/* Poster / Video background */}
