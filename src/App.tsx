@@ -14,6 +14,10 @@ import Admin from "./pages/Admin";
 import Creator from "./pages/Creator";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
+import RefundPolicy from "./pages/RefundPolicy";
+import CookiePolicy from "./pages/CookiePolicy";
 import NotFound from "./pages/NotFound";
 import { Play, ShieldAlert, LogOut } from "lucide-react";
 
@@ -94,6 +98,10 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/refund-policy" element={<RefundPolicy />} />
+      <Route path="/cookies" element={<CookiePolicy />} />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />
     </Routes>
