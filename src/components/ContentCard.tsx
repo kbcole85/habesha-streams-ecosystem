@@ -1,5 +1,6 @@
 import { Play, Star, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
+import PPVCheckoutButton from "@/components/PPVCheckoutButton";
 
 export interface ContentItem {
   id: number;
@@ -21,7 +22,8 @@ interface ContentCardProps {
 const ContentCard = ({ item }: ContentCardProps) => {
   return (
     <Link
-      to={`/watch/${item.id}`}
+      to={item.isPPV ? "#" : `/watch/${item.id}`}
+      onClick={(e) => { if (item.isPPV) e.preventDefault(); }}
       className="content-card group relative rounded-sm overflow-hidden bg-surface cursor-pointer shadow-card block"
     >
       {/* Thumbnail */}
@@ -35,11 +37,17 @@ const ContentCard = ({ item }: ContentCardProps) => {
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-        {/* Play button on hover */}
+        {/* Play button (non-PPV) or PPV buy button on hover */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
-          <div className="w-12 h-12 rounded-full bg-gold/90 backdrop-blur-sm flex items-center justify-center shadow-gold transform scale-75 group-hover:scale-100 transition-transform duration-300">
-            <Play className="w-5 h-5 fill-background text-background ml-0.5" />
-          </div>
+          {item.isPPV ? (
+            <div className="flex flex-col items-center gap-2 px-2">
+              <PPVCheckoutButton eventTitle={item.title} variant="card" />
+            </div>
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-gold/90 backdrop-blur-sm flex items-center justify-center shadow-gold transform scale-75 group-hover:scale-100 transition-transform duration-300">
+              <Play className="w-5 h-5 fill-background text-background ml-0.5" />
+            </div>
+          )}
         </div>
 
         {/* Badges */}
