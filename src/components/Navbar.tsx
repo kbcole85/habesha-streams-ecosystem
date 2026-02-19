@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Play, Search, Bell, User, Menu, X, ChevronDown, LogOut, Settings, Crown } from "lucide-react";
+import { Play, Search, Menu, X, ChevronDown, LogOut, Settings, Crown, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import NotificationBell from "@/components/NotificationBell";
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -112,12 +113,8 @@ const Navbar = () => {
             </button>
           </div>
 
-          {user && (
-            <button className="hidden md:flex p-2 text-muted-foreground hover:text-gold transition-colors relative">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-gold rounded-full" />
-            </button>
-          )}
+          {/* Notification Bell (replaced by NotificationBell component) */}
+          <NotificationBell />
 
           {/* Auth: logged in state */}
           {user ? (
