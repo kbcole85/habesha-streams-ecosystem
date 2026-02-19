@@ -1,9 +1,10 @@
 import { useState } from "react";
 import Navbar from "@/components/Navbar";
+import VideoUploadModal from "@/components/VideoUploadModal";
 import {
   LayoutDashboard, Upload, BarChart2, DollarSign, Film,
   ChevronRight, TrendingUp, Eye, Clock, Play, Plus,
-  CheckCircle, AlertCircle, ArrowUp, Globe
+  CheckCircle, AlertCircle, ArrowUp
 } from "lucide-react";
 import thumb1 from "@/assets/thumb-1.jpg";
 import thumb3 from "@/assets/thumb-3.jpg";
@@ -35,7 +36,7 @@ const sidebarItems = [
 
 const Creator = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [uploadStep, setUploadStep] = useState(1);
+  const [showUpload, setShowUpload] = useState(false);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -62,7 +63,7 @@ const Creator = () => {
             {sidebarItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => item.id === "upload" ? setShowUpload(true) : setActiveTab(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-left transition-all duration-200 ${
                   activeTab === item.id
                     ? "bg-gold/10 border border-gold/30 text-gold"
@@ -91,7 +92,7 @@ const Creator = () => {
               <p className="text-xs text-muted-foreground">Welcome back, Selam Films</p>
             </div>
             <button
-              onClick={() => setActiveTab("upload")}
+              onClick={() => setShowUpload(true)}
               className="flex items-center gap-2 px-4 py-2 gradient-gold text-background text-sm font-bold rounded-sm hover:opacity-90 transition-all"
             >
               <Plus className="w-4 h-4" />
@@ -218,65 +219,11 @@ const Creator = () => {
             </div>
           </div>
 
-          {/* Upload Panel (if upload tab selected) */}
-          {activeTab === "upload" && (
-            <div className="fixed inset-0 bg-background/95 backdrop-blur-xl z-50 flex items-center justify-center p-6">
-              <div className="bg-surface border border-gold/20 rounded-sm w-full max-w-xl shadow-elevated">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gold/10">
-                  <h2 className="cinzel text-lg font-bold text-foreground">Upload Content</h2>
-                  <button onClick={() => setActiveTab("dashboard")} className="text-muted-foreground hover:text-gold text-xl">×</button>
-                </div>
-                <div className="p-6">
-                  {/* Progress steps */}
-                  <div className="flex items-center gap-2 mb-6">
-                    {["Video File", "Metadata", "Monetization", "Publish"].map((step, i) => (
-                      <div key={i} className="flex-1 flex items-center">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                          i + 1 <= uploadStep ? "bg-gold text-background" : "bg-surface-raised text-muted-foreground border border-gold/10"
-                        }`}>
-                          {i + 1 <= uploadStep ? <CheckCircle className="w-3 h-3" /> : i + 1}
-                        </div>
-                        <span className="hidden sm:block text-[9px] text-muted-foreground ml-1 truncate">{step}</span>
-                        {i < 3 && <div className="flex-1 h-px bg-gold/10 mx-1" />}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Upload Drop Zone */}
-                  <div className="border-2 border-dashed border-gold/20 hover:border-gold/50 rounded-sm p-10 text-center cursor-pointer transition-colors mb-4 group">
-                    <Upload className="w-8 h-8 text-muted-foreground group-hover:text-gold mx-auto mb-3 transition-colors" />
-                    <p className="text-sm font-medium text-foreground mb-1">Drag & drop video file</p>
-                    <p className="text-xs text-muted-foreground">MP4, MOV, AVI — up to 50GB</p>
-                    <button className="mt-4 px-4 py-2 border border-gold/30 text-gold text-xs rounded-sm hover:bg-gold hover:text-background transition-all">
-                      Browse Files
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <input placeholder="Title" className="w-full px-3 py-2 text-sm bg-surface-raised border border-gold/10 focus:border-gold/40 rounded-sm outline-none text-foreground placeholder:text-muted-foreground" />
-                    <textarea placeholder="Description..." rows={3} className="w-full px-3 py-2 text-sm bg-surface-raised border border-gold/10 focus:border-gold/40 rounded-sm outline-none text-foreground placeholder:text-muted-foreground resize-none" />
-                    <div className="grid grid-cols-2 gap-3">
-                      <select className="px-3 py-2 text-sm bg-surface-raised border border-gold/10 rounded-sm text-muted-foreground outline-none">
-                        <option>Select Genre</option>
-                        <option>Drama</option>
-                        <option>Documentary</option>
-                        <option>Music</option>
-                        <option>Comedy</option>
-                      </select>
-                      <select className="px-3 py-2 text-sm bg-surface-raised border border-gold/10 rounded-sm text-muted-foreground outline-none">
-                        <option>Monetization</option>
-                        <option>Subscription</option>
-                        <option>Pay-Per-View</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <button className="w-full mt-4 py-3 gradient-gold text-background text-sm font-bold rounded-sm hover:opacity-90 transition-all">
-                    Continue →
-                  </button>
-                </div>
-              </div>
-            </div>
+          {showUpload && (
+            <VideoUploadModal
+              onClose={() => setShowUpload(false)}
+              onSuccess={() => setActiveTab("content")}
+            />
           )}
         </main>
       </div>

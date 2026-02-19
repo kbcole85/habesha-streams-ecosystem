@@ -10,6 +10,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import AnalyticsDashboard from "@/components/AnalyticsDashboard";
+import AdminContentApproval from "@/components/AdminContentApproval";
 
 const stats = [
   { label: "Total Revenue", value: "$148,920", change: "+18.4%", positive: true, icon: DollarSign },
@@ -410,6 +411,9 @@ const Admin = () => {
 
           {/* Analytics tab */}
           {activeTab === "analytics" && <AnalyticsDashboard />}
+
+          {/* Content approval tab */}
+          {activeTab === "content" && <AdminContentApproval />}
 
           {/* Devices tab */}
           {activeTab === "devices" && <DeviceManagementPanel />}
