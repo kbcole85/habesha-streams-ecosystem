@@ -1,9 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Eye, EyeOff, Play, Mail, Lock, User, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import {
+  Eye, EyeOff, Play, Mail, Lock, User, AlertCircle,
+  CheckCircle2, Loader2, Fingerprint, Scan, ShieldCheck,
+} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBiometricAuth } from "@/hooks/useBiometricAuth";
+import { useNativePlatform } from "@/hooks/useNativePlatform";
 
 type Mode = "login" | "signup";
+
+const BiometricIcon = ({ type, className }: { type: string; className?: string }) => {
+  if (type === "face") return <Scan className={className} />;
+  return <Fingerprint className={className} />;
+};
 
 const Auth = () => {
   const [mode, setMode] = useState<Mode>("login");
@@ -12,12 +22,28 @@ const Auth = () => {
   const [displayName, setDisplayName] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [offerBiometric, setOfferBiometric] = useState(false);
+
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string })?.from ?? "/";
+
+  const { isNative } = useNativePlatform();
+  const bio = useBiometricAuth();
+
+  // Check biometric availability on mount (native only)
+  useEffect(() => {
+    if (isNative) {
+      bio.checkAvailability();
+    }
+  }, [isNative]);
+
+  // Show biometric button if on native + available
+  const showBiometric = isNative && bio.isAvailable;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +58,7 @@ const Auth = () => {
       if (err) {
         setError(err.message);
       } else {
-        setSuccess("Account created! Please check your email to verify your account, then sign in.");
+        setSuccess("Account created! Please check your email to verify, then sign in.");
         setMode("login");
         setPassword("");
       }
@@ -41,10 +67,44 @@ const Auth = () => {
       if (err) {
         setError(err.message.includes("Invalid login") ? "Invalid email or password." : err.message);
       } else {
+        // After successful login on native, offer to save biometric credentials
+        if (isNative && bio.isAvailable) {
+          await bio.saveCredentials(email, password);
+          setOfferBiometric(true);
+        }
         navigate(from, { replace: true });
       }
     }
     setLoading(false);
+  };
+
+  const handleBiometricLogin = async () => {
+    setBiometricLoading(true);
+    setError(null);
+    try {
+      const verified = await bio.authenticate("Sign in to Habesha Streams");
+      if (!verified) {
+        setError("Biometric authentication cancelled or failed.");
+        setBiometricLoading(false);
+        return;
+      }
+      const creds = await bio.getStoredCredentials();
+      if (!creds) {
+        setError("No saved credentials found. Please sign in with your password first.");
+        setBiometricLoading(false);
+        return;
+      }
+      const { error: err } = await signIn(creds.email, creds.password);
+      if (err) {
+        setError("Stored credentials are no longer valid. Please sign in with your password.");
+        await bio.deleteStoredCredentials();
+      } else {
+        navigate(from, { replace: true });
+      }
+    } catch {
+      setError("Biometric authentication failed. Please try your password.");
+    }
+    setBiometricLoading(false);
   };
 
   const switchMode = (m: Mode) => {
@@ -75,7 +135,6 @@ const Auth = () => {
       {/* Auth form */}
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
-          {/* Decorative top */}
           <div className="h-0.5 w-full gradient-gold mb-8 rounded-full" />
 
           {/* Tabs */}
@@ -105,6 +164,41 @@ const Auth = () => {
                 : "Create your account and start your 7-day free trial."}
             </p>
           </div>
+
+          {/* Biometric Login Button (native only) */}
+          {showBiometric && mode === "login" && (
+            <button
+              onClick={handleBiometricLogin}
+              disabled={biometricLoading}
+              className="w-full mb-5 flex items-center justify-center gap-3 py-3.5 bg-surface border-2 border-gold/30 hover:border-gold/70 rounded-sm transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {biometricLoading ? (
+                <Loader2 className="w-5 h-5 text-gold animate-spin" />
+              ) : (
+                <BiometricIcon
+                  type={bio.biometricType}
+                  className="w-5 h-5 text-gold group-hover:scale-110 transition-transform"
+                />
+              )}
+              <span className="text-sm font-semibold text-foreground">
+                {biometricLoading
+                  ? "Authenticating…"
+                  : bio.biometricType === "face"
+                  ? "Sign in with Face ID"
+                  : "Sign in with Fingerprint"}
+              </span>
+              <ShieldCheck className="w-3.5 h-3.5 text-gold/60" />
+            </button>
+          )}
+
+          {/* Divider */}
+          {showBiometric && mode === "login" && (
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex-1 h-px bg-gold/10" />
+              <span className="text-[10px] text-muted-foreground uppercase tracking-widest">or use password</span>
+              <div className="flex-1 h-px bg-gold/10" />
+            </div>
+          )}
 
           {/* Alerts */}
           {error && (
@@ -181,6 +275,20 @@ const Auth = () => {
               </div>
             </div>
 
+            {/* Save biometric opt-in for signup */}
+            {mode === "signup" && isNative && bio.isAvailable && (
+              <div className="flex items-center gap-2.5 p-3 bg-gold/5 border border-gold/15 rounded-sm">
+                <BiometricIcon type={bio.biometricType} className="w-4 h-4 text-gold flex-shrink-0" />
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  After sign-up, you can enable{" "}
+                  <span className="text-gold font-medium">
+                    {bio.biometricType === "face" ? "Face ID" : "Fingerprint"} login
+                  </span>{" "}
+                  for faster, secure access.
+                </p>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
@@ -213,7 +321,7 @@ const Auth = () => {
 
           {/* Trust indicators */}
           <div className="mt-8 grid grid-cols-3 gap-3">
-            {["7-day free trial", "Cancel anytime", "Secure & encrypted"].map((t) => (
+            {["7-day free trial", "Cancel anytime", isNative ? "Biometric login" : "Secure & encrypted"].map((t) => (
               <div key={t} className="text-center p-2 bg-surface rounded-sm border border-gold/5">
                 <p className="text-[10px] text-muted-foreground">{t}</p>
               </div>
