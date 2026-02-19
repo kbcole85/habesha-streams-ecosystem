@@ -8,8 +8,8 @@ import {
   Smartphone, RotateCcw, ShieldAlert, Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 
 const stats = [
   { label: "Total Revenue", value: "$148,920", change: "+18.4%", positive: true, icon: DollarSign },
@@ -260,7 +260,8 @@ const Admin = () => {
             </div>
           </div>
 
-          {/* Stats Grid */}
+          {/* Stats Grid + tables — only on dashboard-like tabs */}
+          {!["analytics", "devices", "security", "settings"].includes(activeTab) && (<>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {stats.map((stat, i) => (
               <div key={i} className="bg-surface border border-gold/10 rounded-sm p-4 hover:border-gold/30 transition-colors">
@@ -405,6 +406,10 @@ const Admin = () => {
               </table>
             </div>
           </div>
+          </>)}
+
+          {/* Analytics tab */}
+          {activeTab === "analytics" && <AnalyticsDashboard />}
 
           {/* Devices tab */}
           {activeTab === "devices" && <DeviceManagementPanel />}
