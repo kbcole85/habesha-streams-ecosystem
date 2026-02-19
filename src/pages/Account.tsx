@@ -1546,7 +1546,7 @@ const AccountSecurityTab = ({ user }: { user: any }) => {
 };
 
 // ─── 13. Delete Account Tab ───────────────────────────────────────────────────
-const DeleteAccountTab = ({ signOut }: { signOut: () => Promise<void> }) => {
+const DeleteAccountTab = ({ signOut, userEmail }: { signOut: () => Promise<void>; userEmail: string }) => {
   const [step, setStep] = useState<"warning" | "confirm">("warning");
   const [password, setPassword] = useState("");
   const [reason, setReason] = useState("");
@@ -1560,19 +1560,22 @@ const DeleteAccountTab = ({ signOut }: { signOut: () => Promise<void> }) => {
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      // Re-authenticate first to verify password
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: "", // filled from user context via parent — we use token-based deletion here
-        password,
-      });
-      // Proceed with account deletion via Supabase (marks account for deletion)
-      // Since direct user deletion requires admin, we anonymize locally and sign out
-      await supabase.from("profiles").update({ display_name: null, avatar_url: null, email: "deleted@habeshastreams.com" }).eq("id", (await supabase.auth.getUser()).data.user?.id ?? "");
+      // Verify the password is correct before proceeding
+      const { error: authError } = await supabase.auth.signInWithPassword({ email: userEmail, password });
+      if (authError) {
+        toast({ title: "Incorrect password", description: "Please enter your correct account password.", variant: "destructive" });
+        setDeleting(false);
+        return;
+      }
+      // Anonymize profile data — admin-level deletion happens asynchronously server-side
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("profiles").update({ display_name: null, avatar_url: null }).eq("id", user.id);
+      }
       toast({ title: "Account deletion initiated", description: "Your data will be anonymized within 30 days. A confirmation email has been sent." });
       await signOut();
     } catch {
-      toast({ title: "Account deletion requested", description: "You'll receive a confirmation email. Data will be anonymized within 30 days." });
-      await signOut();
+      toast({ title: "Deletion failed", description: "Please try again or contact support.", variant: "destructive" });
     }
     setDeleting(false);
   };
@@ -1728,7 +1731,7 @@ const Account = () => {
       case "notifications": return <NotificationsTab />;
       case "billing": return <BillingHistoryTab />;
       case "security": return <AccountSecurityTab user={user} />;
-      case "delete": return <DeleteAccountTab signOut={signOut} />;
+      case "delete": return <DeleteAccountTab signOut={signOut} userEmail={user?.email ?? ""} />;
       default: return null;
     }
   };
