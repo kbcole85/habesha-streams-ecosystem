@@ -5,8 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 
-// The PPV price created in Stripe ($7.99)
-const PPV_PRICE_ID = "price_1RBZi63FkY3jsYkVGp5lAIq9";
+// The PPV price created in Stripe ($7.99 one-time)
+const PPV_PRICE_ID = "price_1T2VfO3FkY3jsYkVTAefEwLo";
 
 interface Props {
   eventTitle: string;
