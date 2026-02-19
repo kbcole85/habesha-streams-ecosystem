@@ -13,6 +13,7 @@ import Plans from "./pages/Plans";
 import Admin from "./pages/Admin";
 import Creator from "./pages/Creator";
 import Profile from "./pages/Profile";
+import Account from "./pages/Account";
 import Auth from "./pages/Auth";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
@@ -94,7 +95,15 @@ const AppRoutes = () => {
         path="/profile"
         element={
           <ProtectedRoute>
-            <Profile />
+            <Account />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/account"
+        element={
+          <ProtectedRoute>
+            <Account />
           </ProtectedRoute>
         }
       />
