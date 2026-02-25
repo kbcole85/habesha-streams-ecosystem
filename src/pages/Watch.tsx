@@ -14,14 +14,6 @@ import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import thumb1 from "@/assets/thumb-1.jpg";
-import thumb2 from "@/assets/thumb-2.jpg";
-import thumb3 from "@/assets/thumb-3.jpg";
-import thumb4 from "@/assets/thumb-4.jpg";
-import thumb5 from "@/assets/thumb-5.jpg";
-import thumb6 from "@/assets/thumb-6.jpg";
-import thumb7 from "@/assets/thumb-7.jpg";
-import thumb8 from "@/assets/thumb-8.jpg";
 import PPVCheckoutButton from "@/components/PPVCheckoutButton";
 
 /* ──────────────── Paywall Overlay ──────────────── */
@@ -180,31 +172,37 @@ const PaywallOverlay = ({ isPastDue, contentTitle }: { isPastDue: boolean; conte
   );
 };
 
-/* ──────────────── Content database ──────────────── */
-const contentDB: Record<string, {
+/* ──────────────── Content from DB ──────────────── */
+interface WatchContent {
   id: string; title: string; subtitle: string; year: number;
   rating: string; genre: string; duration: string; durationSec: number;
   description: string; image: string; badge?: string; isPPV?: boolean;
   episodes?: { ep: number; title: string; duration: string }[];
-}> = {
-  "1": { id:"1", title:"Yewedaj Mistir", subtitle:"An Epic Ethiopian Drama", year:2024, rating:"9.2", genre:"Drama", duration:"2h 18m", durationSec:8280, description:"A sweeping tale of love, betrayal, and redemption set against the breathtaking highlands of Northern Ethiopia. Winner of 12 international awards.", image:thumb1, badge:"HD" },
-  "2": { id:"2", title:"Axum Chronicles", subtitle:"The Ancient Empire Reborn", year:2024, rating:"8.8", genre:"Historical", duration:"3h 05m", durationSec:11100, description:"Follow the rise and fall of the mighty Aksumite Empire through stunning visual storytelling. A landmark in African historical cinema.", image:thumb2, badge:"EXCLUSIVE" },
-  "3": { id:"3", title:"Genet", subtitle:"A Story of Grace", year:2024, rating:"8.5", genre:"Romance", duration:"1h 52m", durationSec:6720, description:"Two souls find each other across the ancient valleys of Tigray in this breathtaking love story.", image:thumb3 },
-  "4": { id:"4", title:"Simien Heights", subtitle:"The Roof of Africa", year:2023, rating:"9.0", genre:"Documentary", duration:"1h 40m", durationSec:6000, description:"An awe-inspiring journey through the Simien Mountains — home to gelada baboons, Ethiopian wolves, and ancient monasteries.", image:thumb4, badge:"4K" },
-  "5": { id:"5", title:"Tizita Nights", subtitle:"Sounds of a Nation", year:2024, rating:"8.7", genre:"Music", duration:"1h 25m", durationSec:5100, description:"A concert film capturing Ethiopia's most beloved musicians performing timeless tizita songs against breathtaking backdrops.", image:thumb5 },
-  "6": { id:"6", title:"Addis Nights", subtitle:"Modern Ethiopian Thriller", year:2024, rating:"8.5", genre:"Thriller", duration:"Series", durationSec:3240, description:"In the electric streets of Addis Ababa, a detective uncovers a conspiracy that reaches the highest levels of power. Season 2 now streaming.", image:thumb6, badge:"SEASON 2", episodes:[{ep:1,title:"The Red List",duration:"48m"},{ep:2,title:"Night Market",duration:"51m"},{ep:3,title:"The Informant",duration:"44m"},{ep:4,title:"Smoke & Mirrors",duration:"52m"},{ep:5,title:"Final Reckoning",duration:"58m"}] },
-  "7": { id:"7", title:"Axum Rising", subtitle:"Warriors of the North", year:2024, rating:"9.1", genre:"Epic", duration:"2h 48m", durationSec:10080, description:"An epic battle for the soul of ancient Axum. Armies clash, empires fall, and legends are born in this stunning historical drama.", image:thumb7, isPPV:true },
-  "8": { id:"8", title:"Yilma's Journey", subtitle:"Young Heroes of Ethiopia", year:2023, rating:"8.3", genre:"Adventure", duration:"1h 35m", durationSec:5700, description:"Twelve-year-old Yilma embarks on an epic quest through ancient Ethiopian ruins to save his village from a mysterious threat.", image:thumb8 },
-};
+}
 
-const relatedContent = [
-  { id:"2", title:"Axum Chronicles", image:thumb2, year:2024, genre:"Historical", rating:"8.8", duration:"3h 05m" },
-  { id:"3", title:"Genet", image:thumb3, year:2024, genre:"Romance", rating:"8.5", duration:"1h 52m" },
-  { id:"7", title:"Axum Rising", image:thumb7, year:2024, genre:"Epic", rating:"9.1", duration:"2h 48m" },
-  { id:"4", title:"Simien Heights", image:thumb4, year:2023, genre:"Documentary", rating:"9.0", duration:"1h 40m" },
-  { id:"5", title:"Tizita Nights", image:thumb5, year:2024, genre:"Music", rating:"8.7", duration:"1h 25m" },
-  { id:"6", title:"Addis Nights", image:thumb6, year:2024, genre:"Thriller", rating:"8.5", duration:"Series" },
-];
+function parseRuntime(runtime: string | null): number {
+  if (!runtime) return 5400; // default 1.5h
+  const hMatch = runtime.match(/(\d+)\s*h/i);
+  const mMatch = runtime.match(/(\d+)\s*m/i);
+  return (parseInt(hMatch?.[1] ?? "0") * 3600) + (parseInt(mMatch?.[1] ?? "0") * 60);
+}
+
+function dbToWatchContent(v: any): WatchContent {
+  return {
+    id: v.id,
+    title: v.title,
+    subtitle: v.short_description || v.genre || "Habesha Streams",
+    year: v.release_date ? new Date(v.release_date).getFullYear() : (v.published_at ? new Date(v.published_at).getFullYear() : 2024),
+    rating: "-",
+    genre: v.genre || "",
+    duration: v.runtime || "1h 30m",
+    durationSec: parseRuntime(v.runtime),
+    description: v.full_description || v.short_description || "",
+    image: v.thumbnail_url || "/placeholder.svg",
+    badge: v.monetization_type === "ppv" ? "PPV" : undefined,
+    isPPV: v.monetization_type === "ppv",
+  };
+}
 
 /* ──────────────── Helper ──────────────── */
 function formatTime(sec: number) {
@@ -234,9 +232,15 @@ const haptic = async (style: ImpactStyle = ImpactStyle.Light) => {
 const Watch = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const content = contentDB[id ?? "1"] ?? contentDB["1"];
-  const totalSec = content.durationSec;
   const isNative = Capacitor.isNativePlatform();
+
+  const [content, setContent] = useState<WatchContent>({
+    id: "", title: "Loading...", subtitle: "", year: 2024, rating: "-",
+    genre: "", duration: "", durationSec: 5400, description: "", image: "/placeholder.svg",
+  });
+  const [relatedContent, setRelatedContent] = useState<WatchContent[]>([]);
+  const [contentLoading, setContentLoading] = useState(true);
+  const totalSec = content.durationSec;
 
   const { user, stripeSubscription, loading: authLoading } = useAuth();
   const isSubscribed = stripeSubscription.subscribed;
@@ -246,7 +250,45 @@ const Watch = () => {
     stripeSubscription.subscription_end !== null;
   const showPaywall = !authLoading && (!isSubscribed || isPastDue);
 
-  /* Player state */
+  /* Fetch video from DB */
+  useEffect(() => {
+    if (!id) return;
+    const fetchVideo = async () => {
+      setContentLoading(true);
+      const { data, error } = await supabase
+        .from("videos")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (data) {
+        setContent(dbToWatchContent(data));
+      } else if (error || !data) {
+        toast({ title: "Video not found", variant: "destructive" });
+        navigate("/browse");
+        return;
+      }
+
+      // Fetch related content (same genre or just other approved videos)
+      const { data: related } = await supabase
+        .from("videos")
+        .select("*")
+        .eq("status", "approved")
+        .eq("admin_approved", true)
+        .eq("visibility", "public")
+        .eq("encoding_status", "ready")
+        .neq("id", id)
+        .limit(6);
+
+      if (related) {
+        setRelatedContent(related.map(dbToWatchContent));
+      }
+      setContentLoading(false);
+    };
+    fetchVideo();
+  }, [id]);
+
+
   const [playing, setPlaying]       = useState(false);
   const [currentSec, setCurrentSec] = useState(0);
   const [volume, setVolume]         = useState(80);
@@ -458,8 +500,8 @@ const Watch = () => {
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
-            {/* ── Auth loading spinner ── */}
-            {authLoading && (
+            {/* ── Loading spinner ── */}
+            {(authLoading || contentLoading) && (
               <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
                 <Loader2 className="w-8 h-8 text-gold animate-spin" />
               </div>
@@ -893,6 +935,7 @@ const Watch = () => {
             </div>
 
             {/* Autoplay next */}
+            {relatedContent.length > 0 && (
             <div className="px-4 py-3 border-b border-gold/10 bg-gold/5">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-1.5 h-1.5 bg-gold rounded-full animate-pulse" />
@@ -915,6 +958,7 @@ const Watch = () => {
                 </div>
               </div>
             </div>
+            )}
 
             {/* More like this */}
             <div className="px-4 py-3 border-b border-gold/10">

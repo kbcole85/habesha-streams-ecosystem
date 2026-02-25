@@ -1,53 +1,43 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ContentCard from "@/components/ContentCard";
 import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
-import thumb1 from "@/assets/thumb-1.jpg";
-import thumb2 from "@/assets/thumb-2.jpg";
-import thumb3 from "@/assets/thumb-3.jpg";
-import thumb4 from "@/assets/thumb-4.jpg";
-import thumb5 from "@/assets/thumb-5.jpg";
-import thumb6 from "@/assets/thumb-6.jpg";
-import thumb7 from "@/assets/thumb-7.jpg";
-import thumb8 from "@/assets/thumb-8.jpg";
-
-const allContent = [
-  { id: 1, title: "Yewedaj Mistir", year: 2024, rating: "9.2", genre: "Drama", duration: "2h 18m", image: thumb1, isNew: true, badge: "HD", cat: "movies" },
-  { id: 2, title: "Axum Chronicles", year: 2024, rating: "8.8", genre: "Historical", duration: "3h 05m", image: thumb2, badge: "EXCLUSIVE", cat: "movies" },
-  { id: 3, title: "Genet", year: 2024, rating: "8.5", genre: "Romance", duration: "1h 52m", image: thumb3, isNew: true, cat: "movies" },
-  { id: 4, title: "Simien Heights", year: 2023, rating: "9.0", genre: "Documentary", duration: "1h 40m", image: thumb4, badge: "4K", cat: "documentaries" },
-  { id: 5, title: "Tizita Nights", year: 2024, rating: "8.7", genre: "Music", duration: "1h 25m", image: thumb5, isNew: true, cat: "music" },
-  { id: 6, title: "Addis Nights", year: 2024, rating: "8.5", genre: "Thriller", duration: "Series", image: thumb6, badge: "SEASON 2", cat: "series" },
-  { id: 7, title: "Axum Rising", year: 2024, rating: "9.1", genre: "Epic", duration: "2h 48m", image: thumb7, isPPV: true, cat: "movies" },
-  { id: 8, title: "Yilma's Journey", year: 2023, rating: "8.3", genre: "Adventure", duration: "1h 35m", image: thumb8, isNew: true, cat: "kids" },
-  { id: 9, title: "Habesha Roots", year: 2024, rating: "8.9", genre: "Documentary", duration: "2h 10m", image: thumb4, cat: "documentaries" },
-  { id: 10, title: "Gondär Nights", year: 2024, rating: "8.6", genre: "Thriller", duration: "Series", image: thumb6, cat: "series" },
-  { id: 11, title: "Lalibela", year: 2023, rating: "9.3", genre: "Documentary", duration: "1h 55m", image: thumb7, badge: "4K", cat: "documentaries" },
-  { id: 12, title: "Birtucan", year: 2024, rating: "8.4", genre: "Drama", duration: "1h 42m", image: thumb1, isNew: true, cat: "movies" },
-  { id: 13, title: "Timkat Festival", year: 2024, rating: "8.8", genre: "Music", duration: "3h 00m", image: thumb5, cat: "music" },
-  { id: 14, title: "Habesha Love", year: 2024, rating: "8.2", genre: "Romance", duration: "1h 38m", image: thumb3, cat: "movies" },
-  { id: 15, title: "Tigray Voices", year: 2023, rating: "9.0", genre: "Documentary", duration: "1h 50m", image: thumb4, cat: "documentaries" },
-  { id: 16, title: "City of Lions", year: 2024, rating: "8.7", genre: "Action", duration: "2h 05m", image: thumb2, isPPV: true, cat: "movies" },
-];
+import { usePublicVideos } from "@/hooks/usePublicVideos";
+import { videoToContentItem } from "@/lib/videoHelpers";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const categories = ["All", "Movies", "Series", "Music", "Documentaries", "Kids", "Live", "PPV"];
-const genres = ["All Genres", "Drama", "Thriller", "Romance", "Documentary", "Historical", "Action", "Comedy", "Music", "Adventure"];
+const genres = ["All Genres", "Drama", "Thriller", "Romance", "Documentary", "Historical", "Action", "Comedy", "Music", "Adventure", "Epic"];
 const sortOptions = ["Trending", "New Releases", "Top Rated", "A-Z", "Year: Newest"];
 
 const Browse = () => {
+  const { videos, loading } = usePublicVideos();
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeGenre, setActiveGenre] = useState("All Genres");
   const [sortBy, setSortBy] = useState("Trending");
   const [searchQuery, setSearchQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const filtered = allContent.filter((item) => {
-    const catMatch = activeCategory === "All" || item.cat === activeCategory.toLowerCase();
-    const genreMatch = activeGenre === "All Genres" || item.genre === activeGenre;
-    const searchMatch = searchQuery === "" || item.title.toLowerCase().includes(searchQuery.toLowerCase());
-    return catMatch && genreMatch && searchMatch;
-  });
+  const allContent = useMemo(() => videos.map(videoToContentItem), [videos]);
+
+  const filtered = useMemo(() => {
+    let items = allContent.filter((item) => {
+      const catMatch = activeCategory === "All"
+        || (activeCategory === "PPV" && item.isPPV)
+        || (activeCategory !== "PPV" && item.genre?.toLowerCase().includes(activeCategory.toLowerCase()));
+      const genreMatch = activeGenre === "All Genres" || item.genre === activeGenre;
+      const searchMatch = searchQuery === "" || item.title.toLowerCase().includes(searchQuery.toLowerCase());
+      return catMatch && genreMatch && searchMatch;
+    });
+
+    // Sort
+    if (sortBy === "A-Z") items.sort((a, b) => a.title.localeCompare(b.title));
+    else if (sortBy === "Year: Newest") items.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+    else if (sortBy === "New Releases") items.sort((a, b) => (a.isNew === b.isNew ? 0 : a.isNew ? -1 : 1));
+
+    return items;
+  }, [allContent, activeCategory, activeGenre, searchQuery, sortBy]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -58,7 +48,7 @@ const Browse = () => {
         <div className="max-w-7xl mx-auto">
           <h1 className="cinzel text-3xl md:text-4xl font-bold text-foreground mb-1">Browse</h1>
           <p className="text-muted-foreground text-sm">
-            {filtered.length} titles • East African cinema at your fingertips
+            {loading ? "Loading..." : `${filtered.length} titles • East African cinema at your fingertips`}
           </p>
         </div>
       </div>
@@ -85,7 +75,6 @@ const Browse = () => {
 
           {/* Search + Filters Row */}
           <div className="flex items-center gap-3">
-            {/* Search */}
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
@@ -101,7 +90,6 @@ const Browse = () => {
               )}
             </div>
 
-            {/* Genre Filter */}
             <div className="relative hidden md:block">
               <select
                 value={activeGenre}
@@ -113,7 +101,6 @@ const Browse = () => {
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
             </div>
 
-            {/* Sort */}
             <div className="relative hidden md:block">
               <select
                 value={sortBy}
@@ -138,7 +125,13 @@ const Browse = () => {
 
       {/* Content Grid */}
       <main className="max-w-7xl mx-auto px-6 md:px-12 py-8">
-        {filtered.length > 0 ? (
+        {loading ? (
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
+            {Array.from({ length: 14 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-[2/3] rounded-sm" />
+            ))}
+          </div>
+        ) : filtered.length > 0 ? (
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
             {filtered.map((item) => (
               <ContentCard key={item.id} item={item} />

@@ -4,29 +4,9 @@ import ContentRow from "@/components/ContentRow";
 import Footer from "@/components/Footer";
 import { Play, Shield, Globe, Smartphone, ChevronRight, Star } from "lucide-react";
 import { Link } from "react-router-dom";
-import thumb1 from "@/assets/thumb-1.jpg";
-import thumb2 from "@/assets/thumb-2.jpg";
-import thumb3 from "@/assets/thumb-3.jpg";
-import thumb4 from "@/assets/thumb-4.jpg";
-import thumb5 from "@/assets/thumb-5.jpg";
-import thumb6 from "@/assets/thumb-6.jpg";
-import thumb7 from "@/assets/thumb-7.jpg";
-import thumb8 from "@/assets/thumb-8.jpg";
-
-const allContent = [
-  { id: 1, title: "Yewedaj Mistir", year: 2024, rating: "9.2", genre: "Drama", duration: "2h 18m", image: thumb1, isNew: true, badge: "HD" },
-  { id: 2, title: "Axum Chronicles", year: 2024, rating: "8.8", genre: "Historical", duration: "3h 05m", image: thumb2, badge: "EXCLUSIVE" },
-  { id: 3, title: "Genet", year: 2024, rating: "8.5", genre: "Romance", duration: "1h 52m", image: thumb3, isNew: true },
-  { id: 4, title: "Simien Heights", year: 2023, rating: "9.0", genre: "Documentary", duration: "1h 40m", image: thumb4, badge: "4K" },
-  { id: 5, title: "Tizita Nights", year: 2024, rating: "8.7", genre: "Music", duration: "1h 25m", image: thumb5, isNew: true },
-  { id: 6, title: "Addis Nights", year: 2024, rating: "8.5", genre: "Thriller", duration: "Series", image: thumb6, badge: "SEASON 2" },
-  { id: 7, title: "Axum Rising", year: 2024, rating: "9.1", genre: "Epic", duration: "2h 48m", image: thumb7, isPPV: true },
-  { id: 8, title: "Yilma's Journey", year: 2023, rating: "8.3", genre: "Adventure", duration: "1h 35m", image: thumb8, isNew: true },
-];
-
-const trending = [allContent[5], allContent[0], allContent[6], allContent[2], allContent[4], allContent[1]];
-const newReleases = [allContent[2], allContent[4], allContent[7], allContent[0], allContent[6], allContent[3]];
-const ppvContent = [allContent[6], allContent[1], allContent[3], allContent[5]];
+import { usePublicVideos } from "@/hooks/usePublicVideos";
+import { videoToContentItem } from "@/lib/videoHelpers";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const features = [
   { icon: Shield, title: "Enterprise Security", desc: "DRM protected, encrypted streams with dynamic watermarking and anti-piracy technology." },
@@ -36,82 +16,107 @@ const features = [
 ];
 
 const Index = () => {
+  const { videos, loading } = usePublicVideos();
+  const allContent = videos.map(videoToContentItem);
+
+  const trending = allContent.slice(0, 6);
+  const newReleases = allContent.filter(i => i.isNew).slice(0, 6);
+  const ppvContent = allContent.filter(i => i.isPPV).slice(0, 4);
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-
-      {/* Hero */}
       <HeroSection />
 
-      {/* Featured Content Rows */}
       <div className="relative">
-        {/* Subtle pattern background */}
         <div className="absolute inset-0 habesha-pattern opacity-40 pointer-events-none" />
 
-        <ContentRow
-          title="Trending Now"
-          subtitle="Most watched across East Africa & the diaspora"
-          items={trending}
-          viewAllLink="/browse"
-        />
-
-        {/* Gold divider banner */}
-        <div className="mx-6 md:mx-12 my-4 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
-
-        <ContentRow
-          title="New Releases"
-          subtitle="Fresh stories added this week"
-          items={newReleases}
-          viewAllLink="/browse"
-        />
-
-        {/* PPV Spotlight */}
-        <section className="py-10 px-6 md:px-12">
-          <div className="relative overflow-hidden rounded-sm bg-surface border border-gold/20 p-8 habesha-pattern">
-            <div className="absolute inset-0 bg-gradient-to-r from-surface via-transparent to-gold/5" />
-            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-1.5 h-1.5 bg-habesha-red rounded-full animate-pulse" />
-                  <span className="text-xs text-habesha-red font-bold tracking-widest uppercase">Pay-Per-View Events</span>
+        {loading ? (
+          <div className="px-6 md:px-12 py-8 space-y-6">
+            {[1, 2].map(i => (
+              <div key={i}>
+                <Skeleton className="h-6 w-48 mb-4" />
+                <div className="flex gap-3">
+                  {[1,2,3,4,5,6].map(j => <Skeleton key={j} className="w-40 h-60 rounded-sm flex-none" />)}
                 </div>
-                <h2 className="cinzel text-2xl md:text-3xl font-bold text-foreground mb-2">
-                  Premium Live Events & <span className="text-gold">Exclusive Premieres</span>
-                </h2>
-                <p className="text-muted-foreground text-sm max-w-md">
-                  Rent or purchase exclusive content with time-limited access. Own the moment.
-                </p>
               </div>
-              <Link
-                to="/browse?cat=ppv"
-                className="flex-none flex items-center gap-2 px-6 py-3 border border-gold text-gold hover:bg-gold hover:text-background rounded-sm transition-all duration-200 font-semibold text-sm"
-              >
-                Browse PPV <ChevronRight className="w-4 h-4" />
-              </Link>
-            </div>
-            {/* PPV Cards preview */}
-            <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
-              {ppvContent.map((item) => (
-                <div key={item.id} className="relative rounded-sm overflow-hidden aspect-[2/3] group cursor-pointer">
-                  <img src={item.image} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/90 to-transparent" />
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <p className="text-xs font-semibold text-foreground line-clamp-1">{item.title}</p>
-                    <span className="text-[9px] text-gold">From $3.99</span>
-                  </div>
-                  <div className="absolute top-2 right-2 bg-habesha-red px-1.5 py-0.5 text-[9px] font-bold text-foreground rounded-sm">PPV</div>
-                </div>
-              ))}
-            </div>
+            ))}
           </div>
-        </section>
+        ) : allContent.length === 0 ? (
+          <div className="px-6 md:px-12 py-20 text-center">
+            <p className="cinzel text-2xl text-muted-foreground">Content coming soon</p>
+            <p className="text-sm text-muted-foreground mt-2">Check back for new releases</p>
+          </div>
+        ) : (
+          <>
+            <ContentRow
+              title="Trending Now"
+              subtitle="Most watched across East Africa & the diaspora"
+              items={trending}
+              viewAllLink="/browse"
+            />
 
-        <ContentRow
-          title="All Content"
-          subtitle="Explore the full Habesha Streams library"
-          items={allContent}
-          viewAllLink="/browse"
-        />
+            <div className="mx-6 md:mx-12 my-4 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
+
+            {newReleases.length > 0 && (
+              <ContentRow
+                title="New Releases"
+                subtitle="Fresh stories added recently"
+                items={newReleases}
+                viewAllLink="/browse"
+              />
+            )}
+
+            {/* PPV Spotlight */}
+            {ppvContent.length > 0 && (
+              <section className="py-10 px-6 md:px-12">
+                <div className="relative overflow-hidden rounded-sm bg-surface border border-gold/20 p-8 habesha-pattern">
+                  <div className="absolute inset-0 bg-gradient-to-r from-surface via-transparent to-gold/5" />
+                  <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="w-1.5 h-1.5 bg-habesha-red rounded-full animate-pulse" />
+                        <span className="text-xs text-habesha-red font-bold tracking-widest uppercase">Pay-Per-View Events</span>
+                      </div>
+                      <h2 className="cinzel text-2xl md:text-3xl font-bold text-foreground mb-2">
+                        Premium Live Events & <span className="text-gold">Exclusive Premieres</span>
+                      </h2>
+                      <p className="text-muted-foreground text-sm max-w-md">
+                        Rent or purchase exclusive content with time-limited access. Own the moment.
+                      </p>
+                    </div>
+                    <Link
+                      to="/browse?cat=ppv"
+                      className="flex-none flex items-center gap-2 px-6 py-3 border border-gold text-gold hover:bg-gold hover:text-background rounded-sm transition-all duration-200 font-semibold text-sm"
+                    >
+                      Browse PPV <ChevronRight className="w-4 h-4" />
+                    </Link>
+                  </div>
+                  <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {ppvContent.map((item) => (
+                      <div key={item.id} className="relative rounded-sm overflow-hidden aspect-[2/3] group cursor-pointer">
+                        <img src={item.image || "/placeholder.svg"} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-background/90 to-transparent" />
+                        <div className="absolute bottom-2 left-2 right-2">
+                          <p className="text-xs font-semibold text-foreground line-clamp-1">{item.title}</p>
+                          <span className="text-[9px] text-gold">From $3.99</span>
+                        </div>
+                        <div className="absolute top-2 right-2 bg-habesha-red px-1.5 py-0.5 text-[9px] font-bold text-foreground rounded-sm">PPV</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            <ContentRow
+              title="All Content"
+              subtitle="Explore the full Habesha Streams library"
+              items={allContent}
+              viewAllLink="/browse"
+            />
+          </>
+        )}
       </div>
 
       {/* Features Section */}

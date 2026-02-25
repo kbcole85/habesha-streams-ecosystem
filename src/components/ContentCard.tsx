@@ -3,13 +3,13 @@ import { Link } from "react-router-dom";
 import PPVCheckoutButton from "@/components/PPVCheckoutButton";
 
 export interface ContentItem {
-  id: number;
+  id: string;
   title: string;
-  year: number;
-  rating: string;
-  genre: string;
-  duration: string;
-  image: string;
+  year?: number;
+  rating?: string;
+  genre?: string;
+  duration?: string;
+  image?: string;
   badge?: string;
   isNew?: boolean;
   isPPV?: boolean;
@@ -20,6 +20,8 @@ interface ContentCardProps {
 }
 
 const ContentCard = ({ item }: ContentCardProps) => {
+  const placeholderImg = "/placeholder.svg";
+
   return (
     <Link
       to={item.isPPV ? "#" : `/watch/${item.id}`}
@@ -29,9 +31,10 @@ const ContentCard = ({ item }: ContentCardProps) => {
       {/* Thumbnail */}
       <div className="relative aspect-[2/3] overflow-hidden">
         <img
-          src={item.image}
+          src={item.image || placeholderImg}
           alt={item.title}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          loading="lazy"
         />
 
         {/* Gradient overlay */}
@@ -70,10 +73,12 @@ const ContentCard = ({ item }: ContentCardProps) => {
         </div>
 
         {/* Rating */}
-        <div className="absolute top-2 right-2 flex items-center gap-1 bg-background/80 backdrop-blur-sm px-1.5 py-0.5 rounded-sm">
-          <Star className="w-2.5 h-2.5 fill-gold text-gold" />
-          <span className="text-[9px] text-gold font-semibold">{item.rating}</span>
-        </div>
+        {item.rating && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 bg-background/80 backdrop-blur-sm px-1.5 py-0.5 rounded-sm">
+            <Star className="w-2.5 h-2.5 fill-gold text-gold" />
+            <span className="text-[9px] text-gold font-semibold">{item.rating}</span>
+          </div>
+        )}
       </div>
 
       {/* Info */}
@@ -82,11 +87,15 @@ const ContentCard = ({ item }: ContentCardProps) => {
           {item.title}
         </h3>
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-muted-foreground">{item.year} • {item.genre}</span>
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <Clock className="w-2.5 h-2.5" />
-            <span className="text-[10px]">{item.duration}</span>
-          </div>
+          <span className="text-[10px] text-muted-foreground">
+            {item.year ? `${item.year} • ` : ""}{item.genre || ""}
+          </span>
+          {item.duration && (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <Clock className="w-2.5 h-2.5" />
+              <span className="text-[10px]">{item.duration}</span>
+            </div>
+          )}
         </div>
       </div>
     </Link>
