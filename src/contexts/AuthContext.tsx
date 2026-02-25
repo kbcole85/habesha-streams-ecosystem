@@ -130,12 +130,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    // IMPORTANT: onAuthStateChange callback must NOT be async
+    // Supabase awaits async callbacks which can block getSession
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
+      (_event, newSession) => {
         setSession(newSession);
         setUser(newSession?.user ?? null);
         if (newSession?.user) {
-          await fetchProfileData(newSession.user.id);
+          fetchProfileData(newSession.user.id).then(() => {
+            setLoading(false);
+          }).catch(() => {
+            setLoading(false);
+          });
           setTimeout(() => checkSubscription(), 500);
           setTimeout(() => runDeviceValidation(), 800);
         } else {
@@ -145,8 +151,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setStripeSubscription(DEFAULT_STRIPE_SUB);
           setDeviceBlocked(false);
           setDeviceBlockReason(null);
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
@@ -162,7 +168,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    return () => authSub.unsubscribe();
+    // Safety timeout - never stay loading forever
+    const safetyTimer = setTimeout(() => setLoading(false), 5000);
+
+    return () => {
+      authSub.unsubscribe();
+      clearTimeout(safetyTimer);
+    };
   }, [checkSubscription, runDeviceValidation]);
 
   const signUp = async (email: string, password: string, displayName: string) => {
