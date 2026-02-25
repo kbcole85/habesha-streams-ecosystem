@@ -228,16 +228,14 @@ const Watch = () => {
       return;
     }
     const checkPurchase = async () => {
-      // Check payments table for PPV purchase matching this video ID
-      // PPV payments store the video_id in metadata or we match by video title/id
       const { data } = await supabase
         .from("payments")
         .select("id")
         .eq("user_id", user.id)
         .eq("type", "ppv")
         .eq("status", "succeeded")
-        .limit(20);
-      // For now, any successful PPV payment grants access (refine with video-specific matching later)
+        .eq("video_id", content.id)
+        .limit(1);
       setPpvPurchased(!!(data && data.length > 0));
       setPpvCheckDone(true);
     };
@@ -533,7 +531,7 @@ const Watch = () => {
                   </span>
                   <h3 className="cinzel text-xl font-black text-foreground mb-2">{content.title}</h3>
                   <p className="text-sm text-muted-foreground mb-6 max-w-xs mx-auto">{content.description}</p>
-                  <PPVCheckoutButton eventTitle={content.title} variant="banner" />
+                  <PPVCheckoutButton eventTitle={content.title} videoId={content.id} variant="banner" />
                 </div>
               </div>
             )}

@@ -28,9 +28,9 @@ serve(async (req) => {
     if (userErr || !user?.email) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id });
 
-    const { priceId, eventTitle } = await req.json();
+    const { priceId, eventTitle, videoId } = await req.json();
     if (!priceId) throw new Error("priceId is required");
-    logStep("Received PPV request", { priceId, eventTitle });
+    logStep("Received PPV request", { priceId, eventTitle, videoId });
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
       apiVersion: "2025-08-27.basil",
@@ -47,9 +47,9 @@ serve(async (req) => {
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "payment",
       invoice_creation: { enabled: true },
-      success_url: `${origin}/watch/ppv?success=true&session_id={CHECKOUT_SESSION_ID}&event=${encodeURIComponent(eventTitle ?? "")}`,
-      cancel_url: `${origin}/browse?canceled=true`,
-      metadata: { userId: user.id, eventTitle: eventTitle ?? "" },
+      success_url: `${origin}/watch/${videoId ?? ""}?ppv_success=true`,
+      cancel_url: `${origin}/watch/${videoId ?? ""}?ppv_canceled=true`,
+      metadata: { userId: user.id, eventTitle: eventTitle ?? "", videoId: videoId ?? "" },
     });
 
     logStep("PPV checkout session created", { sessionId: session.id });

@@ -97,14 +97,8 @@ serve(async (req) => {
         const session = event.data.object as Stripe.Checkout.Session;
         logStep("Checkout session completed", { sessionId: session.id, mode: session.mode });
 
-        // Get user_id from metadata
         const userId = session.metadata?.userId ?? null;
         const customerId = session.customer as string | null;
-
-        if (!userId) {
-          logStep("No userId in session metadata, trying customer resolve");
-        }
-
         const resolvedUserId = userId || (customerId ? await resolveUserId(customerId) : null);
 
         if (!resolvedUserId) {
@@ -113,18 +107,15 @@ serve(async (req) => {
         }
 
         if (session.mode === "subscription" && session.subscription) {
-          // Fetch the subscription from Stripe to get period details
           const sub = await stripe.subscriptions.retrieve(session.subscription as string);
           const periodEnd = new Date(sub.current_period_end * 1000).toISOString();
           const periodStart = new Date(sub.current_period_start * 1000).toISOString();
 
-          // Update profiles — mark as subscribed immediately
           await supabase.from("profiles").update({
             is_subscribed: true,
             subscription_period_end: periodEnd,
           }).eq("id", resolvedUserId);
 
-          // Sync subscriptions table
           await supabase.from("subscriptions").upsert({
             user_id: resolvedUserId,
             plan: "monthly",
@@ -140,8 +131,26 @@ serve(async (req) => {
             session_id: session.id,
             subscription_id: sub.id,
           });
-
           logStep("Checkout → subscription activated", { userId: resolvedUserId, subscriptionId: sub.id });
+        }
+
+        // Handle PPV one-time payment — store video_id
+        if (session.mode === "payment") {
+          const videoId = session.metadata?.videoId ?? null;
+          const amountTotal = (session.amount_total ?? 0) / 100;
+          if (videoId) {
+            await supabase.from("payments").insert({
+              user_id: resolvedUserId,
+              stripe_payment_intent_id: session.payment_intent as string | null,
+              amount: amountTotal,
+              currency: session.currency ?? "usd",
+              type: "ppv",
+              status: "succeeded",
+              video_id: videoId,
+            });
+            await audit("ppv_purchased", resolvedUserId, { video_id: videoId, amount: amountTotal });
+            logStep("PPV purchase recorded", { userId: resolvedUserId, videoId, amount: amountTotal });
+          }
         }
 
         await supabase.from("subscription_events").update({ user_id: resolvedUserId }).eq("stripe_event_id", event.id);
