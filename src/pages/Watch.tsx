@@ -189,12 +189,42 @@ const Watch = () => {
 
   const { user, isSubscribed, subscriptionEnd, role, loading: authLoading } = useAuth();
   const isAdmin = role === "admin";
-  console.log("[Watch] Access check:", { role, isAdmin, isSubscribed, userId: user?.id });
-  
-  // PPV check is handled separately per-video after content loads
-  // Subscription paywall only for non-PPV content
+  const [ppvPurchased, setPpvPurchased] = useState(false);
+  const [ppvCheckDone, setPpvCheckDone] = useState(false);
+
+  // Check PPV purchase status
+  useEffect(() => {
+    if (!content.isPPV || !user || isAdmin) {
+      setPpvPurchased(false);
+      setPpvCheckDone(true);
+      return;
+    }
+    const checkPurchase = async () => {
+      const { data } = await supabase
+        .from("payments")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("type", "ppv")
+        .eq("status", "succeeded")
+        .eq("stripe_payment_intent_id", content.id)
+        .limit(1);
+      setPpvPurchased(!!(data && data.length > 0));
+      setPpvCheckDone(true);
+    };
+    checkPurchase();
+  }, [content.id, content.isPPV, user, isAdmin]);
+
+  /*
+   * ACCESS ORDER:
+   * 1. Admin → always allow
+   * 2. PPV video → show PPV paywall (no subscription needed, anyone can buy)
+   * 3. Non-PPV → require subscription
+   */
+  console.log("[Watch] Access check:", { role, isAdmin, isSubscribed, isPPV: content.isPPV, ppvPurchased, userId: user?.id });
+
   const isPastDue = !isAdmin && !isSubscribed && user !== null && subscriptionEnd !== null;
-  const showSubscriptionPaywall = !authLoading && !isAdmin && !isSubscribed && !content.isPPV;
+  const showPPVPaywall = !authLoading && ppvCheckDone && !isAdmin && content.isPPV && !ppvPurchased;
+  const showSubscriptionPaywall = !authLoading && !isAdmin && !content.isPPV && !isSubscribed;
 
   /* Fetch video from DB */
   useEffect(() => {
@@ -459,7 +489,7 @@ const Watch = () => {
             )}
 
             {/* ── PPV purchase overlay (anyone can buy, no subscription required) ── */}
-            {content.isPPV && !isAdmin && !authLoading && (
+            {showPPVPaywall && (
               <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
                 <div className="text-center px-6">
                   <span className="inline-block px-3 py-1 bg-habesha-red text-foreground text-[10px] font-bold uppercase tracking-widest rounded-sm mb-4">
