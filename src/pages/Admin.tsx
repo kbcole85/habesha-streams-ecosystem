@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import {
@@ -12,28 +12,6 @@ import { toast } from "@/hooks/use-toast";
 import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 import AdminContentApproval from "@/components/AdminContentApproval";
 
-const stats = [
-  { label: "Total Revenue", value: "$148,920", change: "+18.4%", positive: true, icon: DollarSign },
-  { label: "Active Subscribers", value: "24,851", change: "+12.1%", positive: true, icon: Users },
-  { label: "Total Content", value: "1,284", change: "+34 this month", positive: true, icon: Film },
-  { label: "Watch Hours", value: "892K", change: "+22.7%", positive: true, icon: Eye },
-];
-
-const recentContent = [
-  { title: "Axum Chronicles", creator: "Selam Films", status: "approved", views: "12,840", revenue: "$2,456" },
-  { title: "Addis Love Story", creator: "Biruk Studio", status: "pending", views: "—", revenue: "—" },
-  { title: "Simien Heights", creator: "EthioDoc", status: "approved", views: "8,234", revenue: "$1,678" },
-  { title: "Habesha Warriors", creator: "AkashaFilms", status: "rejected", views: "—", revenue: "—" },
-  { title: "Tizita Concert Live", creator: "Netsanet Music", status: "approved", views: "31,200", revenue: "$5,821" },
-];
-
-const creators = [
-  { name: "Selam Films", content: 14, revenue: "$18,450", status: "active", payout: "Pending" },
-  { name: "EthioDoc", content: 8, revenue: "$12,340", status: "active", payout: "Paid" },
-  { name: "AkashaFilms", content: 22, revenue: "$34,200", status: "active", payout: "Pending" },
-  { name: "Biruk Studio", content: 5, revenue: "$4,120", status: "review", payout: "Hold" },
-  { name: "Netsanet Music", content: 11, revenue: "$21,890", status: "active", payout: "Paid" },
-];
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: "Dashboard", id: "dashboard" },
@@ -180,6 +158,104 @@ const TestCodesPanel = () => {
         )}
       </div>
     </div>
+  );
+};
+
+// ── Real Dashboard Overview ────────────────────────────────────────────────
+const AdminDashboardOverview = () => {
+  const [stats, setStats] = useState<{ label: string; value: string; icon: any }[]>([]);
+  const [recentVideos, setRecentVideos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const [subsRes, paymentsRes, videosRes, recentVidsRes] = await Promise.all([
+        supabase.from("profiles").select("id").eq("is_subscribed", true),
+        supabase.from("payments").select("amount").eq("status", "succeeded"),
+        supabase.from("videos").select("id").eq("status", "approved"),
+        supabase.from("videos").select("id, title, status, created_at, creator_id").order("created_at", { ascending: false }).limit(10),
+      ]);
+
+      const totalSubs = subsRes.data?.length ?? 0;
+      const totalRevenue = (paymentsRes.data ?? []).reduce((s, p) => s + Number(p.amount), 0);
+      const totalApproved = videosRes.data?.length ?? 0;
+
+      setStats([
+        { label: "Total Revenue", value: `$${totalRevenue.toFixed(2)}`, icon: DollarSign },
+        { label: "Active Subscribers", value: String(totalSubs), icon: Users },
+        { label: "Approved Content", value: String(totalApproved), icon: Film },
+      ]);
+
+      setRecentVideos(recentVidsRes.data ?? []);
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 text-gold animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        {stats.map((stat, i) => (
+          <div key={i} className="bg-surface border border-gold/10 rounded-sm p-4 hover:border-gold/30 transition-colors">
+            <div className="w-8 h-8 gradient-gold rounded-sm flex items-center justify-center mb-3">
+              <stat.icon className="w-4 h-4 text-background" />
+            </div>
+            <p className="cinzel text-xl font-bold text-foreground">{stat.value}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{stat.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Recent Videos */}
+      <div className="bg-surface border border-gold/10 rounded-sm">
+        <div className="px-5 py-4 border-b border-gold/10">
+          <h2 className="cinzel text-sm font-bold text-foreground">Recent Content Submissions</h2>
+        </div>
+        {recentVideos.length === 0 ? (
+          <div className="px-5 py-10 text-center text-xs text-muted-foreground">No content submissions yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gold/5">
+                  <th className="px-5 py-3 text-left text-muted-foreground font-medium">Title</th>
+                  <th className="px-3 py-3 text-left text-muted-foreground font-medium">Status</th>
+                  <th className="px-5 py-3 text-right text-muted-foreground font-medium">Submitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentVideos.map((v) => (
+                  <tr key={v.id} className="border-b border-gold/5 hover:bg-surface-raised transition-colors">
+                    <td className="px-5 py-3 font-medium text-foreground">{v.title}</td>
+                    <td className="px-3 py-3">
+                      <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold ${
+                        v.status === "approved" ? "bg-emerald/20 text-emerald-bright" :
+                        v.status === "pending" ? "bg-gold/10 text-gold" :
+                        "bg-destructive/20 text-destructive"
+                      }`}>
+                        {v.status}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-right text-muted-foreground">
+                      {new Date(v.created_at).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
   );
 };
 
@@ -398,153 +474,10 @@ const Admin = () => {
             </div>
           </div>
 
-          {/* Stats Grid + tables — only on dashboard-like tabs */}
-          {!["analytics", "devices", "security", "settings", "testcodes"].includes(activeTab) && (<>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {stats.map((stat, i) => (
-              <div key={i} className="bg-surface border border-gold/10 rounded-sm p-4 hover:border-gold/30 transition-colors">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-8 h-8 gradient-gold rounded-sm flex items-center justify-center">
-                    <stat.icon className="w-4 h-4 text-background" />
-                  </div>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-sm ${stat.positive ? "text-emerald-bright bg-emerald/20" : "text-destructive bg-destructive/20"}`}>
-                    {stat.change}
-                  </span>
-                </div>
-                <p className="cinzel text-xl font-bold text-foreground">{stat.value}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            {/* Recent Content */}
-            <div className="lg:col-span-2 bg-surface border border-gold/10 rounded-sm">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gold/10">
-                <h2 className="cinzel text-sm font-bold text-foreground">Recent Content Submissions</h2>
-                <button className="text-xs text-gold hover:text-gold-bright">View All</button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-gold/5">
-                      <th className="px-5 py-3 text-left text-muted-foreground font-medium">Title</th>
-                      <th className="px-3 py-3 text-left text-muted-foreground font-medium">Creator</th>
-                      <th className="px-3 py-3 text-left text-muted-foreground font-medium">Status</th>
-                      <th className="px-3 py-3 text-right text-muted-foreground font-medium">Views</th>
-                      <th className="px-5 py-3 text-right text-muted-foreground font-medium">Revenue</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentContent.map((c, i) => (
-                      <tr key={i} className="border-b border-gold/5 hover:bg-surface-raised transition-colors">
-                        <td className="px-5 py-3 font-medium text-foreground">{c.title}</td>
-                        <td className="px-3 py-3 text-muted-foreground">{c.creator}</td>
-                        <td className="px-3 py-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[10px] font-bold ${
-                            c.status === "approved" ? "bg-emerald/20 text-emerald-bright" :
-                            c.status === "pending" ? "bg-gold/10 text-gold" :
-                            "bg-destructive/20 text-destructive"
-                          }`}>
-                            {c.status === "approved" ? <CheckCircle className="w-2.5 h-2.5" /> :
-                             c.status === "pending" ? <Clock className="w-2.5 h-2.5" /> :
-                             <AlertTriangle className="w-2.5 h-2.5" />}
-                            {c.status}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3 text-right text-muted-foreground">{c.views}</td>
-                        <td className="px-5 py-3 text-right text-gold font-medium">{c.revenue}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-surface border border-gold/10 rounded-sm">
-              <div className="px-5 py-4 border-b border-gold/10">
-                <h2 className="cinzel text-sm font-bold text-foreground">Quick Actions</h2>
-              </div>
-              <div className="p-4 space-y-2">
-                {[
-                  { icon: Upload, label: "Upload Content", color: "text-gold" },
-                  { icon: Users, label: "Approve Creators", color: "text-emerald-bright", badge: "3" },
-                  { icon: DollarSign, label: "Process Payouts", color: "text-gold", badge: "5" },
-                  { icon: AlertTriangle, label: "Security Alerts", color: "text-destructive", badge: "2" },
-                  { icon: BarChart2, label: "Export Reports", color: "text-muted-foreground" },
-                  { icon: Globe, label: "Manage Regions", color: "text-muted-foreground" },
-                  { icon: Activity, label: "System Health", color: "text-emerald-bright" },
-                ].map((action, i) => (
-                  <button key={i} className="w-full flex items-center gap-3 px-3 py-2.5 bg-surface-raised hover:bg-surface-overlay border border-transparent hover:border-gold/20 rounded-sm transition-all duration-200 text-left">
-                    <action.icon className={`w-4 h-4 ${action.color}`} />
-                    <span className="text-xs font-medium text-foreground flex-1">{action.label}</span>
-                    {action.badge && (
-                      <span className="px-1.5 py-0.5 bg-gold text-background text-[9px] font-bold rounded-sm">{action.badge}</span>
-                    )}
-                    <ChevronRight className="w-3 h-3 text-muted-foreground" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Creator Overview Table */}
-          <div className="bg-surface border border-gold/10 rounded-sm">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gold/10">
-              <h2 className="cinzel text-sm font-bold text-foreground">Creator Overview</h2>
-              <div className="flex gap-2">
-                <button className="px-3 py-1.5 text-xs border border-gold/20 text-gold hover:bg-gold hover:text-background rounded-sm transition-all">Approve All Pending</button>
-                <button className="px-3 py-1.5 text-xs bg-gold text-background rounded-sm hover:opacity-90">Process Payouts</button>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-gold/5">
-                    <th className="px-5 py-3 text-left text-muted-foreground font-medium">Creator</th>
-                    <th className="px-3 py-3 text-left text-muted-foreground font-medium">Content</th>
-                    <th className="px-3 py-3 text-left text-muted-foreground font-medium">Revenue</th>
-                    <th className="px-3 py-3 text-left text-muted-foreground font-medium">Status</th>
-                    <th className="px-3 py-3 text-left text-muted-foreground font-medium">Payout</th>
-                    <th className="px-5 py-3 text-right text-muted-foreground font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {creators.map((c, i) => (
-                    <tr key={i} className="border-b border-gold/5 hover:bg-surface-raised transition-colors">
-                      <td className="px-5 py-3 font-semibold text-foreground">{c.name}</td>
-                      <td className="px-3 py-3 text-muted-foreground">{c.content}</td>
-                      <td className="px-3 py-3 text-gold font-medium">{c.revenue}</td>
-                      <td className="px-3 py-3">
-                        <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold ${
-                          c.status === "active" ? "bg-emerald/20 text-emerald-bright" : "bg-gold/10 text-gold"
-                        }`}>
-                          {c.status}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold ${
-                          c.payout === "Paid" ? "bg-emerald/20 text-emerald-bright" :
-                          c.payout === "Hold" ? "bg-destructive/20 text-destructive" :
-                          "bg-gold/10 text-gold"
-                        }`}>
-                          {c.payout}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button className="px-2 py-1 text-[10px] border border-gold/20 text-gold rounded-sm hover:bg-gold hover:text-background transition-all">View</button>
-                          <button className="px-2 py-1 text-[10px] bg-gold/10 text-gold rounded-sm hover:bg-gold hover:text-background transition-all">Pay</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          </>)}
+          {/* Stats + tables — only on dashboard-like tabs */}
+          {!["analytics", "devices", "security", "settings", "testcodes", "content"].includes(activeTab) && (
+            <AdminDashboardOverview />
+          )}
 
           {/* Analytics tab */}
           {activeTab === "analytics" && <AnalyticsDashboard />}
