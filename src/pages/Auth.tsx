@@ -161,7 +161,7 @@ const Auth = () => {
             <p className="text-sm text-muted-foreground">
               {mode === "login"
                 ? "Sign in to continue watching your favourite East African content."
-                : "Create your account and start your 7-day free trial."}
+                : "Create your account and start streaming today."}
             </p>
           </div>
 
@@ -321,7 +321,7 @@ const Auth = () => {
 
           {/* Trust indicators */}
           <div className="mt-8 grid grid-cols-3 gap-3">
-            {["7-day free trial", "Cancel anytime", isNative ? "Biometric login" : "Secure & encrypted"].map((t) => (
+            {["Instant access", "Cancel anytime", isNative ? "Biometric login" : "Secure & encrypted"].map((t) => (
               <div key={t} className="text-center p-2 bg-surface rounded-sm border border-gold/5">
                 <p className="text-[10px] text-muted-foreground">{t}</p>
               </div>
