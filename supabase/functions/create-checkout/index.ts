@@ -47,7 +47,6 @@ serve(async (req) => {
       line_items: [{ price: SUBSCRIPTION_PRICE_ID, quantity: 1 }],
       mode: "subscription",
       subscription_data: {
-        trial_period_days: 7,
         metadata: { userId: user.id },
       },
       success_url: `${origin}/plans?success=true&session_id={CHECKOUT_SESSION_ID}`,

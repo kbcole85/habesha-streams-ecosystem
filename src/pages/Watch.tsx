@@ -71,7 +71,6 @@ const PaywallOverlay = ({ isPastDue, contentTitle }: { isPastDue: boolean; conte
         ) : (
           <p className="text-muted-foreground text-sm mb-2">
             <span className="text-foreground font-medium">"{contentTitle}"</span> requires a Habesha Streams subscription.
-            Start your <span className="text-gold font-semibold">7-day free trial</span> today.
           </p>
         )}
 
@@ -101,7 +100,7 @@ const PaywallOverlay = ({ isPastDue, contentTitle }: { isPastDue: boolean; conte
               Subscribe — $5/month
             </button>
             <p className="text-[10px] text-muted-foreground">
-              7-day free trial · Cancel anytime
+              Instant access · Cancel anytime
             </p>
             {!user && (
               <button
@@ -190,8 +189,12 @@ const Watch = () => {
 
   const { user, isSubscribed, subscriptionEnd, role, loading: authLoading } = useAuth();
   const isAdmin = role === "admin";
+  console.log("[Watch] Access check:", { role, isAdmin, isSubscribed, userId: user?.id });
+  
+  // PPV check is handled separately per-video after content loads
+  // Subscription paywall only for non-PPV content
   const isPastDue = !isAdmin && !isSubscribed && user !== null && subscriptionEnd !== null;
-  const showPaywall = !authLoading && !isAdmin && !isSubscribed;
+  const showSubscriptionPaywall = !authLoading && !isAdmin && !isSubscribed && !content.isPPV;
 
   /* Fetch video from DB */
   useEffect(() => {
@@ -450,13 +453,13 @@ const Watch = () => {
               </div>
             )}
 
-            {/* ── Paywall overlay ── */}
-            {showPaywall && !authLoading && (
+            {/* ── Subscription paywall (non-PPV content only) ── */}
+            {showSubscriptionPaywall && !authLoading && (
               <PaywallOverlay isPastDue={isPastDue} contentTitle={content.title} />
             )}
 
-            {/* ── PPV purchase overlay (for PPV items that the user hasn't bought) ── */}
-            {content.isPPV && !isAdmin && !showPaywall && !authLoading && (
+            {/* ── PPV purchase overlay (anyone can buy, no subscription required) ── */}
+            {content.isPPV && !isAdmin && !authLoading && (
               <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
                 <div className="text-center px-6">
                   <span className="inline-block px-3 py-1 bg-habesha-red text-foreground text-[10px] font-bold uppercase tracking-widest rounded-sm mb-4">
