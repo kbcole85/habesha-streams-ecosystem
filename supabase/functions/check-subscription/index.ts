@@ -12,13 +12,6 @@ const logStep = (step: string, details?: unknown) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${d}`);
 };
 
-// Maps Stripe product IDs to plan names
-const PRODUCT_TO_PLAN: Record<string, string> = {
-  "prod_U0Wg5zAPSk517W": "basic",
-  "prod_U0Wg5HIxekgi8t": "standard",
-  "prod_U0Wi3VbILnbCB2": "premium",
-};
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -46,7 +39,9 @@ serve(async (req) => {
 
     if (customers.data.length === 0) {
       logStep("No Stripe customer found");
-      return new Response(JSON.stringify({ subscribed: false, plan: null, subscription_end: null }), {
+      // Ensure profile reflects no subscription
+      await supabase.from("profiles").update({ is_subscribed: false, subscription_period_end: null }).eq("id", user.id);
+      return new Response(JSON.stringify({ subscribed: false, subscription_end: null }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       });
@@ -62,41 +57,38 @@ serve(async (req) => {
     });
 
     const hasActiveSub = subscriptions.data.length > 0;
-    let plan: string | null = null;
-    let productId: string | null = null;
     let subscriptionEnd: string | null = null;
-    let subscriptionId: string | null = null;
 
     if (hasActiveSub) {
       const sub = subscriptions.data[0];
-      subscriptionId = sub.id;
       subscriptionEnd = new Date(sub.current_period_end * 1000).toISOString();
-      productId = sub.items.data[0].price.product as string;
-      plan = PRODUCT_TO_PLAN[productId] ?? "basic";
-      logStep("Active subscription", { subscriptionId, plan, subscriptionEnd });
+      logStep("Active subscription", { subscriptionId: sub.id, subscriptionEnd });
 
-      // Sync to Supabase subscriptions table
+      // Sync to profiles
+      await supabase.from("profiles").update({
+        is_subscribed: true,
+        subscription_period_end: subscriptionEnd,
+      }).eq("id", user.id);
+
+      // Also sync subscriptions table
       await supabase.from("subscriptions").upsert({
         user_id: user.id,
-        plan,
+        plan: "monthly",
         billing_cycle: "monthly",
         status: "active",
         stripe_customer_id: customerId,
-        stripe_subscription_id: subscriptionId,
+        stripe_subscription_id: sub.id,
         current_period_end: subscriptionEnd,
         current_period_start: new Date(sub.current_period_start * 1000).toISOString(),
         trial_ends_at: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
       }, { onConflict: "user_id" });
-      logStep("Subscription synced to DB");
     } else {
-      // If no active sub, mark inactive in DB
-      await supabase
-        .from("subscriptions")
-        .update({ status: "inactive" })
-        .eq("user_id", user.id);
+      // No active sub
+      await supabase.from("profiles").update({ is_subscribed: false }).eq("id", user.id);
+      await supabase.from("subscriptions").update({ status: "inactive" }).eq("user_id", user.id);
     }
 
-    return new Response(JSON.stringify({ subscribed: hasActiveSub, plan, product_id: productId, subscription_end: subscriptionEnd }), {
+    return new Response(JSON.stringify({ subscribed: hasActiveSub, subscription_end: subscriptionEnd }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

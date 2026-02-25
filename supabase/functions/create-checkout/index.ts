@@ -12,6 +12,9 @@ const logStep = (step: string, details?: unknown) => {
   console.log(`[CREATE-CHECKOUT] ${step}${d}`);
 };
 
+// Single $5/month subscription price
+const SUBSCRIPTION_PRICE_ID = "price_1T2VdG3FkY3jsYkVxnQVPki5";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -28,10 +31,6 @@ serve(async (req) => {
     if (userErr || !user?.email) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id });
 
-    const { priceId, planName } = await req.json();
-    if (!priceId) throw new Error("priceId is required");
-    logStep("Received request", { priceId, planName });
-
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
       apiVersion: "2025-08-27.basil",
     });
@@ -45,11 +44,11 @@ serve(async (req) => {
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: [{ price: SUBSCRIPTION_PRICE_ID, quantity: 1 }],
       mode: "subscription",
       subscription_data: {
         trial_period_days: 7,
-        metadata: { userId: user.id, planName: planName ?? "" },
+        metadata: { userId: user.id },
       },
       success_url: `${origin}/plans?success=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/plans?canceled=true`,

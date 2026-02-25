@@ -213,6 +213,8 @@ export type Database = {
           display_name: string | null
           email: string
           id: string
+          is_subscribed: boolean
+          subscription_period_end: string | null
           updated_at: string
         }
         Insert: {
@@ -221,6 +223,8 @@ export type Database = {
           display_name?: string | null
           email: string
           id: string
+          is_subscribed?: boolean
+          subscription_period_end?: string | null
           updated_at?: string
         }
         Update: {
@@ -229,6 +233,8 @@ export type Database = {
           display_name?: string | null
           email?: string
           id?: string
+          is_subscribed?: boolean
+          subscription_period_end?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -396,6 +402,7 @@ export type Database = {
           genre: string | null
           id: string
           monetization_type: string
+          ppv_price: number | null
           price: number | null
           processing_progress: number
           published_at: string | null
@@ -427,6 +434,7 @@ export type Database = {
           genre?: string | null
           id?: string
           monetization_type?: string
+          ppv_price?: number | null
           price?: number | null
           processing_progress?: number
           published_at?: string | null
@@ -458,6 +466,7 @@ export type Database = {
           genre?: string | null
           id?: string
           monetization_type?: string
+          ppv_price?: number | null
           price?: number | null
           processing_progress?: number
           published_at?: string | null
