@@ -97,83 +97,100 @@ function MyContentTab() {
             return (
               <div
                 key={v.id}
-                className="flex items-center gap-4 p-4 bg-surface border border-gold/10 hover:border-gold/25 rounded-sm transition-all group"
+                className="flex flex-col gap-2 p-4 bg-surface border border-gold/10 hover:border-gold/25 rounded-sm transition-all group"
               >
-                {/* Thumbnail */}
-                <div className="relative w-20 h-12 rounded-sm overflow-hidden flex-shrink-0 bg-surface-raised">
-                  {v.thumbnail_url ? (
-                    <img src={v.thumbnail_url} alt={v.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Film className="w-5 h-5 text-muted-foreground opacity-40" />
-                    </div>
-                  )}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-background/60">
-                    <Play className="w-4 h-4 text-gold fill-gold" />
-                  </div>
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{v.title}</p>
-                  <div className="flex items-center flex-wrap gap-2 mt-0.5">
-                    {v.genre && (
-                      <span className="text-[10px] text-muted-foreground">{v.genre}</span>
+                <div className="flex items-center gap-4">
+                  {/* Thumbnail */}
+                  <div className="relative w-20 h-12 rounded-sm overflow-hidden flex-shrink-0 bg-surface-raised">
+                    {v.thumbnail_url ? (
+                      <img src={v.thumbnail_url} alt={v.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Film className="w-5 h-5 text-muted-foreground opacity-40" />
+                      </div>
                     )}
-                    {v.runtime && (
-                      <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                        <Clock className="w-2.5 h-2.5" />{v.runtime}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-background/60">
+                      <Play className="w-4 h-4 text-gold fill-gold" />
+                    </div>
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{v.title}</p>
+                    <div className="flex items-center flex-wrap gap-2 mt-0.5">
+                      {v.genre && <span className="text-[10px] text-muted-foreground">{v.genre}</span>}
+                      {v.runtime && (
+                        <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                          <Clock className="w-2.5 h-2.5" />{v.runtime}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-muted-foreground">
+                        {v.monetization_type === "ppv" ? `PPV • $${v.price}` : "Subscription"}
                       </span>
-                    )}
-                    <span className="text-[10px] text-muted-foreground">
-                      {v.monetization_type === "ppv" ? `PPV • $${v.price}` : "Subscription"}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    Submitted {new Date(v.created_at).toLocaleDateString()}
-                    {v.published_at && ` · Live ${new Date(v.published_at).toLocaleDateString()}`}
-                  </p>
-                  {v.rejection_reason && (
-                    <p className="text-[10px] text-destructive mt-1 truncate">
-                      ❌ {v.rejection_reason}
-                    </p>
-                  )}
-                </div>
-
-                {/* Status badge */}
-                <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-sm flex-shrink-0 ${badge.cls}`}>
-                  <BadgeIcon className="w-2.5 h-2.5" />
-                  {badge.label}
-                </span>
-
-                {/* Delete */}
-                <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {confirmDelete === v.id ? (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleDelete(v.id)}
-                        disabled={deletingId === v.id}
-                        className="px-2 py-1 text-[10px] bg-destructive/20 text-destructive hover:bg-destructive/30 rounded-sm font-bold transition-all disabled:opacity-50"
-                      >
-                        {deletingId === v.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirm"}
-                      </button>
-                      <button
-                        onClick={() => setConfirmDelete(null)}
-                        className="px-2 py-1 text-[10px] border border-gold/15 text-muted-foreground hover:text-foreground rounded-sm transition-all"
-                      >
-                        Cancel
-                      </button>
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => setConfirmDelete(v.id)}
-                      className="w-7 h-7 flex items-center justify-center rounded-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      title="Delete video"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Submitted {new Date(v.created_at).toLocaleDateString()}
+                      {v.published_at && ` · Live ${new Date(v.published_at).toLocaleDateString()}`}
+                    </p>
+                    {v.rejection_reason && (
+                      <p className="text-[10px] text-destructive mt-1 truncate">❌ {v.rejection_reason}</p>
+                    )}
+                  </div>
+
+                  {/* Status badge */}
+                  <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-sm flex-shrink-0 ${badge.cls}`}>
+                    <BadgeIcon className="w-2.5 h-2.5" />
+                    {badge.label}
+                  </span>
+
+                  {/* Delete */}
+                  <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {confirmDelete === v.id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleDelete(v.id)}
+                          disabled={deletingId === v.id}
+                          className="px-2 py-1 text-[10px] bg-destructive/20 text-destructive hover:bg-destructive/30 rounded-sm font-bold transition-all disabled:opacity-50"
+                        >
+                          {deletingId === v.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirm"}
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(null)}
+                          className="px-2 py-1 text-[10px] border border-gold/15 text-muted-foreground hover:text-foreground rounded-sm transition-all"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDelete(v.id)}
+                        className="w-7 h-7 flex items-center justify-center rounded-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Delete video"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {/* Encoding progress bar */}
+                {v.encoding_status === "processing" && (
+                  <div className="w-full">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-gold font-medium flex items-center gap-1">
+                        <Zap className="w-2.5 h-2.5 animate-pulse" />
+                        Encoding in progress…
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">{v.processing_progress ?? 0}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-surface-raised rounded-full overflow-hidden">
+                      <div
+                        className="h-full gradient-gold rounded-full transition-all duration-700"
+                        style={{ width: `${Math.max(5, v.processing_progress ?? 0)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}

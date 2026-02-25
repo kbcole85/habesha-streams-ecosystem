@@ -17,6 +17,10 @@ export interface CreatorVideo {
   admin_approved: boolean;
   rejection_reason: string | null;
   encoding_status: string;
+  encoding_started_at: string | null;
+  encoding_completed_at: string | null;
+  encoding_error: string | null;
+  processing_progress: number;
   visibility: string;
   published_at: string | null;
   created_at: string;

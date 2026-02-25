@@ -41,6 +41,36 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_logs: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          details: Json | null
+          id: string
+          ip: string | null
+          target_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip?: string | null
+          target_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip?: string | null
+          target_id?: string | null
+        }
+        Relationships: []
+      }
       device_sessions: {
         Row: {
           device_fingerprint: string
@@ -140,6 +170,42 @@ export type Database = {
         }
         Relationships: []
       }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          status: string
+          stripe_payment_intent_id: string | null
+          stripe_subscription_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          id?: string
+          status: string
+          stripe_payment_intent_id?: string | null
+          stripe_subscription_id?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          status?: string
+          stripe_payment_intent_id?: string | null
+          stripe_subscription_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -164,6 +230,33 @@ export type Database = {
           email?: string
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      subscription_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          raw_payload: Json | null
+          stripe_event_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          raw_payload?: Json | null
+          stripe_event_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          raw_payload?: Json | null
+          stripe_event_id?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -263,14 +356,21 @@ export type Database = {
         Row: {
           admin_approved: boolean
           age_rating: string | null
+          allowed_countries: string[] | null
+          blocked_countries: string[] | null
           created_at: string
           creator_id: string
+          duration_seconds: number | null
+          encoding_completed_at: string | null
+          encoding_error: string | null
+          encoding_started_at: string | null
           encoding_status: string
           full_description: string | null
           genre: string | null
           id: string
           monetization_type: string
           price: number | null
+          processing_progress: number
           published_at: string | null
           rejection_reason: string | null
           release_date: string | null
@@ -287,14 +387,21 @@ export type Database = {
         Insert: {
           admin_approved?: boolean
           age_rating?: string | null
+          allowed_countries?: string[] | null
+          blocked_countries?: string[] | null
           created_at?: string
           creator_id: string
+          duration_seconds?: number | null
+          encoding_completed_at?: string | null
+          encoding_error?: string | null
+          encoding_started_at?: string | null
           encoding_status?: string
           full_description?: string | null
           genre?: string | null
           id?: string
           monetization_type?: string
           price?: number | null
+          processing_progress?: number
           published_at?: string | null
           rejection_reason?: string | null
           release_date?: string | null
@@ -311,14 +418,21 @@ export type Database = {
         Update: {
           admin_approved?: boolean
           age_rating?: string | null
+          allowed_countries?: string[] | null
+          blocked_countries?: string[] | null
           created_at?: string
           creator_id?: string
+          duration_seconds?: number | null
+          encoding_completed_at?: string | null
+          encoding_error?: string | null
+          encoding_started_at?: string | null
           encoding_status?: string
           full_description?: string | null
           genre?: string | null
           id?: string
           monetization_type?: string
           price?: number | null
+          processing_progress?: number
           published_at?: string | null
           rejection_reason?: string | null
           release_date?: string | null
