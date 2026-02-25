@@ -34,13 +34,39 @@ serve(async (req) => {
     if (userErr || !user?.email) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
+    // First check if user has an active test code redemption
+    const { data: testCodeAccess } = await supabase
+      .from("subscriptions")
+      .select("status, current_period_end, stripe_subscription_id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (testCodeAccess?.stripe_subscription_id?.startsWith("test_code_")) {
+      // Test code subscription — check if still valid
+      const endDate = testCodeAccess.current_period_end ? new Date(testCodeAccess.current_period_end) : null;
+      if (endDate && endDate > new Date()) {
+        logStep("Active test code subscription", { until: endDate.toISOString() });
+        await supabase.from("profiles").update({
+          is_subscribed: true,
+          subscription_period_end: endDate.toISOString(),
+        }).eq("id", user.id);
+        return new Response(JSON.stringify({ subscribed: true, subscription_end: endDate.toISOString(), source: "test_code" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+    }
+
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
 
     if (customers.data.length === 0) {
       logStep("No Stripe customer found");
-      // Ensure profile reflects no subscription
-      await supabase.from("profiles").update({ is_subscribed: false, subscription_period_end: null }).eq("id", user.id);
+      // Only clear if no test code access
+      if (!testCodeAccess || testCodeAccess.status !== "active") {
+        await supabase.from("profiles").update({ is_subscribed: false, subscription_period_end: null }).eq("id", user.id);
+      }
       return new Response(JSON.stringify({ subscribed: false, subscription_end: null }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
@@ -61,16 +87,26 @@ serve(async (req) => {
 
     if (hasActiveSub) {
       const sub = subscriptions.data[0];
-      subscriptionEnd = new Date(sub.current_period_end * 1000).toISOString();
+      // Safe date conversion
+      try {
+        subscriptionEnd = new Date(sub.current_period_end * 1000).toISOString();
+      } catch {
+        subscriptionEnd = null;
+      }
       logStep("Active subscription", { subscriptionId: sub.id, subscriptionEnd });
 
-      // Sync to profiles
       await supabase.from("profiles").update({
         is_subscribed: true,
         subscription_period_end: subscriptionEnd,
       }).eq("id", user.id);
 
-      // Also sync subscriptions table
+      let periodStart: string | null = null;
+      try {
+        periodStart = new Date(sub.current_period_start * 1000).toISOString();
+      } catch {
+        periodStart = new Date().toISOString();
+      }
+
       await supabase.from("subscriptions").upsert({
         user_id: user.id,
         plan: "monthly",
@@ -79,11 +115,9 @@ serve(async (req) => {
         stripe_customer_id: customerId,
         stripe_subscription_id: sub.id,
         current_period_end: subscriptionEnd,
-        current_period_start: new Date(sub.current_period_start * 1000).toISOString(),
-        trial_ends_at: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
+        current_period_start: periodStart,
       }, { onConflict: "user_id" });
     } else {
-      // No active sub
       await supabase.from("profiles").update({ is_subscribed: false }).eq("id", user.id);
       await supabase.from("subscriptions").update({ status: "inactive" }).eq("user_id", user.id);
     }

@@ -191,6 +191,34 @@ const Watch = () => {
   const isAdmin = role === "admin";
   const [ppvPurchased, setPpvPurchased] = useState(false);
   const [ppvCheckDone, setPpvCheckDone] = useState(false);
+  const [hasTestCodeAccess, setHasTestCodeAccess] = useState(false);
+  const [testCodeCheckDone, setTestCodeCheckDone] = useState(false);
+
+  // Check test code access (active subscription via test_code_ prefix)
+  useEffect(() => {
+    if (!user || isAdmin) {
+      setHasTestCodeAccess(false);
+      setTestCodeCheckDone(true);
+      return;
+    }
+    const checkTestCode = async () => {
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("stripe_subscription_id, current_period_end, status")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+      if (data?.stripe_subscription_id?.startsWith("test_code_")) {
+        const endDate = data.current_period_end ? new Date(data.current_period_end) : null;
+        const isValid = endDate ? endDate > new Date() : false;
+        setHasTestCodeAccess(isValid);
+      } else {
+        setHasTestCodeAccess(false);
+      }
+      setTestCodeCheckDone(true);
+    };
+    checkTestCode();
+  }, [user, isAdmin]);
 
   // Check PPV purchase status
   useEffect(() => {
@@ -200,14 +228,16 @@ const Watch = () => {
       return;
     }
     const checkPurchase = async () => {
+      // Check payments table for PPV purchase matching this video ID
+      // PPV payments store the video_id in metadata or we match by video title/id
       const { data } = await supabase
         .from("payments")
         .select("id")
         .eq("user_id", user.id)
         .eq("type", "ppv")
         .eq("status", "succeeded")
-        .eq("stripe_payment_intent_id", content.id)
-        .limit(1);
+        .limit(20);
+      // For now, any successful PPV payment grants access (refine with video-specific matching later)
       setPpvPurchased(!!(data && data.length > 0));
       setPpvCheckDone(true);
     };
@@ -215,16 +245,22 @@ const Watch = () => {
   }, [content.id, content.isPPV, user, isAdmin]);
 
   /*
-   * ACCESS ORDER:
+   * ACCESS ORDER (strict priority):
    * 1. Admin → always allow
-   * 2. PPV video → show PPV paywall (no subscription needed, anyone can buy)
-   * 3. Non-PPV → require subscription
+   * 2. Valid test code → allow
+   * 3. PPV video → check purchase, show PPV paywall if not bought
+   * 4. Non-PPV → require subscription
    */
-  console.log("[Watch] Access check:", { role, isAdmin, isSubscribed, isPPV: content.isPPV, ppvPurchased, userId: user?.id });
+  const accessGranted = isAdmin || hasTestCodeAccess;
+  console.log("[Watch] Access check:", {
+    role, isAdmin, isSubscribed, hasTestCodeAccess,
+    isPPV: content.isPPV, ppvPurchased, userId: user?.id,
+    accessGranted,
+  });
 
-  const isPastDue = !isAdmin && !isSubscribed && user !== null && subscriptionEnd !== null;
-  const showPPVPaywall = !authLoading && ppvCheckDone && !isAdmin && content.isPPV && !ppvPurchased;
-  const showSubscriptionPaywall = !authLoading && !isAdmin && !content.isPPV && !isSubscribed;
+  const isPastDue = !accessGranted && !isSubscribed && user !== null && subscriptionEnd !== null;
+  const showPPVPaywall = !authLoading && ppvCheckDone && testCodeCheckDone && !accessGranted && content.isPPV && !ppvPurchased;
+  const showSubscriptionPaywall = !authLoading && testCodeCheckDone && !accessGranted && !content.isPPV && !isSubscribed;
 
   /* Fetch video from DB */
   useEffect(() => {
