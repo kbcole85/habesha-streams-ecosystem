@@ -305,6 +305,33 @@ export type Database = {
         }
         Relationships: []
       }
+      test_access_codes: {
+        Row: {
+          assigned_user: string | null
+          code: string
+          created_at: string | null
+          expires_at: string
+          id: string
+          is_used: boolean | null
+        }
+        Insert: {
+          assigned_user?: string | null
+          code: string
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          is_used?: boolean | null
+        }
+        Update: {
+          assigned_user?: string | null
+          code?: string
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          is_used?: boolean | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           assigned_at: string
