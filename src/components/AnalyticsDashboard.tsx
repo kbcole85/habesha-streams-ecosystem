@@ -129,9 +129,9 @@ const AnalyticsDashboard = () => {
         />
         <StatCard
           icon={DollarSign}
-          label="Est. Monthly Revenue"
+          label="Monthly Revenue (Verified)"
           value={`$${totalMonthRevenue.toFixed(2)}`}
-          sub="Subscriptions + PPV"
+          sub="From payments table"
           badge="14d"
         />
         <StatCard
