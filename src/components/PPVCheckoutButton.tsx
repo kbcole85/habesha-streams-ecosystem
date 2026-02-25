@@ -10,12 +10,13 @@ const PPV_PRICE_ID = "price_1T2VfO3FkY3jsYkVTAefEwLo";
 
 interface Props {
   eventTitle: string;
+  videoId: string;
   /** Visual variant — "card" for Browse grid, "banner" for Watch page */
   variant?: "card" | "banner";
   className?: string;
 }
 
-const PPVCheckoutButton = ({ eventTitle, variant = "card", className = "" }: Props) => {
+const PPVCheckoutButton = ({ eventTitle, videoId, variant = "card", className = "" }: Props) => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -32,7 +33,7 @@ const PPVCheckoutButton = ({ eventTitle, variant = "card", className = "" }: Pro
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("create-ppv-payment", {
-        body: { priceId: PPV_PRICE_ID, eventTitle },
+        body: { priceId: PPV_PRICE_ID, eventTitle, videoId },
       });
       if (error) throw error;
       if (data?.url) window.open(data.url, "_blank");

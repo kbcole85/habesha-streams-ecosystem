@@ -44,7 +44,7 @@ const ContentCard = ({ item }: ContentCardProps) => {
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
           {item.isPPV ? (
             <div className="flex flex-col items-center gap-2 px-2">
-              <PPVCheckoutButton eventTitle={item.title} variant="card" />
+              <PPVCheckoutButton eventTitle={item.title} videoId={item.id} variant="card" />
             </div>
           ) : (
             <div className="w-12 h-12 rounded-full bg-gold/90 backdrop-blur-sm flex items-center justify-center shadow-gold transform scale-75 group-hover:scale-100 transition-transform duration-300">

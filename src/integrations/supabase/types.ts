@@ -181,6 +181,7 @@ export type Database = {
           stripe_subscription_id: string | null
           type: string
           user_id: string
+          video_id: string | null
         }
         Insert: {
           amount: number
@@ -192,6 +193,7 @@ export type Database = {
           stripe_subscription_id?: string | null
           type: string
           user_id: string
+          video_id?: string | null
         }
         Update: {
           amount?: number
@@ -203,6 +205,7 @@ export type Database = {
           stripe_subscription_id?: string | null
           type?: string
           user_id?: string
+          video_id?: string | null
         }
         Relationships: []
       }

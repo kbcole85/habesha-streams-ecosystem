@@ -160,7 +160,7 @@ const Index = () => {
           <p className="text-muted-foreground text-lg mb-2">
             Just <span className="text-gold font-semibold">$5/month</span>. Cancel anytime.
           </p>
-          <p className="text-muted-foreground text-sm mb-10">7-day free trial • No credit card required to start</p>
+          <p className="text-muted-foreground text-sm mb-10">Instant access · No commitments</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/plans"
