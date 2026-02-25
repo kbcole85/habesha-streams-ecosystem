@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Film, Users, DollarSign, Shield, Settings,
   TrendingUp, Upload, Eye, AlertTriangle, CheckCircle, Clock,
   ChevronRight, BarChart2, Globe, Activity, Bell, Search,
-  Smartphone, RotateCcw, ShieldAlert, Loader2,
+  Smartphone, RotateCcw, ShieldAlert, Loader2, KeyRound, Copy,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -43,8 +43,145 @@ const sidebarItems = [
   { icon: TrendingUp, label: "Analytics", id: "analytics" },
   { icon: Shield, label: "Security", id: "security" },
   { icon: Smartphone, label: "Devices", id: "devices" },
+  { icon: KeyRound, label: "Test Codes", id: "testcodes" },
   { icon: Settings, label: "Settings", id: "settings" },
 ];
+
+// ── Test Access Codes Panel ────────────────────────────────────────────────
+const TestCodesPanel = () => {
+  const [codes, setCodes] = useState<Array<{
+    id: string; code: string; is_used: boolean | null; assigned_user: string | null;
+    expires_at: string; created_at: string | null;
+  }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [assignedEmails, setAssignedEmails] = useState<Record<string, string>>({});
+
+  const loadCodes = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("test_access_codes")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (error) {
+      console.error("[TestCodes] fetch error:", error);
+      toast({ title: "Failed to load codes", description: error.message, variant: "destructive" });
+    }
+    if (data) {
+      setCodes(data);
+      const userIds = data.filter(c => c.assigned_user).map(c => c.assigned_user!);
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, email, display_name")
+          .in("id", userIds);
+        if (profiles) {
+          const map: Record<string, string> = {};
+          profiles.forEach(p => { map[p.id] = p.display_name || p.email; });
+          setAssignedEmails(map);
+        }
+      }
+    }
+    setLoading(false);
+  };
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({ title: "Copied!", description: code });
+  };
+
+  const isExpired = (expiresAt: string) => new Date(expiresAt) < new Date();
+  const usedCount = codes.filter(c => c.is_used).length;
+  const expiredCount = codes.filter(c => !c.is_used && isExpired(c.expires_at)).length;
+  const availableCount = codes.filter(c => !c.is_used && !isExpired(c.expires_at)).length;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label: "Available", value: availableCount, color: "text-emerald-bright" },
+          { label: "Redeemed", value: usedCount, color: "text-gold" },
+          { label: "Expired", value: expiredCount, color: "text-destructive" },
+        ].map((s, i) => (
+          <div key={i} className="bg-surface border border-gold/10 rounded-sm p-4 text-center">
+            <p className={`cinzel text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-surface border border-gold/10 rounded-sm">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gold/10">
+          <h3 className="cinzel text-sm font-bold text-foreground">Test Access Codes</h3>
+          <button
+            onClick={loadCodes}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gold/20 text-gold rounded-sm hover:bg-gold hover:text-background transition-all"
+          >
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <KeyRound className="w-3 h-3" />}
+            {codes.length === 0 ? "Load Codes" : "Refresh"}
+          </button>
+        </div>
+
+        {codes.length === 0 ? (
+          <div className="px-5 py-10 text-center text-xs text-muted-foreground">
+            Click "Load Codes" to view all test access codes.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gold/5">
+                  <th className="px-5 py-3 text-left text-muted-foreground font-medium">Code</th>
+                  <th className="px-3 py-3 text-left text-muted-foreground font-medium">Status</th>
+                  <th className="px-3 py-3 text-left text-muted-foreground font-medium">Assigned To</th>
+                  <th className="px-3 py-3 text-left text-muted-foreground font-medium">Expires</th>
+                  <th className="px-5 py-3 text-right text-muted-foreground font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {codes.map((c) => {
+                  const expired = isExpired(c.expires_at);
+                  const status = c.is_used ? "redeemed" : expired ? "expired" : "available";
+                  return (
+                    <tr key={c.id} className="border-b border-gold/5 hover:bg-surface-raised transition-colors">
+                      <td className="px-5 py-3 font-mono font-bold text-foreground tracking-wider">{c.code}</td>
+                      <td className="px-3 py-3">
+                        <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold ${
+                          status === "redeemed" ? "bg-gold/10 text-gold" :
+                          status === "expired" ? "bg-destructive/20 text-destructive" :
+                          "bg-emerald/20 text-emerald-bright"
+                        }`}>
+                          {status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {c.assigned_user
+                          ? assignedEmails[c.assigned_user] || c.assigned_user.slice(0, 8) + "…"
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {new Date(c.expires_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <button
+                          onClick={() => copyCode(c.code)}
+                          className="px-2 py-1 text-[10px] border border-gold/20 text-gold rounded-sm hover:bg-gold hover:text-background transition-all"
+                        >
+                          <Copy className="w-3 h-3 inline mr-1" />
+                          Copy
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 
 // ── Device Management Panel ────────────────────────────────────────────────
@@ -262,7 +399,7 @@ const Admin = () => {
           </div>
 
           {/* Stats Grid + tables — only on dashboard-like tabs */}
-          {!["analytics", "devices", "security", "settings"].includes(activeTab) && (<>
+          {!["analytics", "devices", "security", "settings", "testcodes"].includes(activeTab) && (<>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {stats.map((stat, i) => (
               <div key={i} className="bg-surface border border-gold/10 rounded-sm p-4 hover:border-gold/30 transition-colors">
@@ -417,6 +554,9 @@ const Admin = () => {
 
           {/* Devices tab */}
           {activeTab === "devices" && <DeviceManagementPanel />}
+
+          {/* Test Codes tab */}
+          {activeTab === "testcodes" && <TestCodesPanel />}
 
           {/* Security tab */}
           {activeTab === "security" && (
