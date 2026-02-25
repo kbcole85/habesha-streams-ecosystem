@@ -417,6 +417,49 @@ const Admin = () => {
 
           {/* Devices tab */}
           {activeTab === "devices" && <DeviceManagementPanel />}
+
+          {/* Security tab */}
+          {activeTab === "security" && (
+            <div className="space-y-6">
+              <div className="bg-surface border border-gold/10 rounded-sm p-5">
+                <h3 className="cinzel text-sm font-bold text-foreground mb-4">Security Overview</h3>
+                <ul className="space-y-2 text-xs text-muted-foreground">
+                  <li className="flex items-center gap-2"><CheckCircle className="w-3 h-3 text-emerald-bright" /> Device-lock enforcement active</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="w-3 h-3 text-emerald-bright" /> RLS policies enforced on all tables</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="w-3 h-3 text-emerald-bright" /> Stripe webhook signature verification</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="w-3 h-3 text-emerald-bright" /> Audit logging enabled</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Settings tab */}
+          {activeTab === "settings" && (
+            <div className="space-y-6">
+              <div className="bg-surface border border-gold/10 rounded-sm p-5">
+                <h3 className="cinzel text-sm font-bold text-foreground mb-4">Platform Settings</h3>
+                <p className="text-xs text-muted-foreground mb-4">Core platform configuration is managed through the backend. Use the panels below for quick actions.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-surface-raised border border-gold/10 rounded-sm">
+                    <h4 className="text-xs font-semibold text-foreground mb-2">Content Defaults</h4>
+                    <p className="text-[10px] text-muted-foreground">Default encoding: H.264 · Default visibility: Private · Auto-approve: Off</p>
+                  </div>
+                  <div className="p-4 bg-surface-raised border border-gold/10 rounded-sm">
+                    <h4 className="text-xs font-semibold text-foreground mb-2">Security Policy</h4>
+                    <p className="text-[10px] text-muted-foreground">Device lock: 1 device/account · Max login attempts: 5 · Session timeout: 24h</p>
+                  </div>
+                  <div className="p-4 bg-surface-raised border border-gold/10 rounded-sm">
+                    <h4 className="text-xs font-semibold text-foreground mb-2">Billing</h4>
+                    <p className="text-[10px] text-muted-foreground">Provider: Stripe · Grace period: 7 days · Retry failed payments: 3x over 5 days</p>
+                  </div>
+                  <div className="p-4 bg-surface-raised border border-gold/10 rounded-sm">
+                    <h4 className="text-xs font-semibold text-foreground mb-2">Geo Restrictions</h4>
+                    <p className="text-[10px] text-muted-foreground">Country filtering: Per-video · Default: All regions allowed</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>

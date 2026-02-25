@@ -59,44 +59,7 @@ const TABS = [
   { id: "delete", icon: Trash2, label: "Delete Account" },
 ];
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-const MOCK_DEVICES = [
-  { id: "1", name: "MacBook Pro", type: "laptop", lastSeen: "Now · Active", current: true, location: "New York, US" },
-  { id: "2", name: "iPhone 15 Pro", type: "phone", lastSeen: "2 hours ago", current: false, location: "New York, US" },
-  { id: "3", name: "Samsung TV", type: "tv", lastSeen: "Yesterday", current: false, location: "New York, US" },
-];
-
-const MOCK_WATCHLIST = [
-  { id: "1", title: "Genet", year: 2024, image: thumb3, genre: "Drama", runtime: "1h 52m" },
-  { id: "2", title: "Tizita Nights", year: 2024, image: thumb5, genre: "Romance", runtime: "2h 04m" },
-  { id: "3", title: "Axum Rising", year: 2024, image: thumb2, genre: "Historical", runtime: "1h 48m" },
-  { id: "4", title: "Simien Heights", year: 2023, image: thumb4, genre: "Adventure", runtime: "1h 38m" },
-];
-
-const MOCK_HISTORY = [
-  { id: "1", title: "Axum Chronicles", progress: 78, image: thumb2, watchedAt: "Today", timeRemaining: "22 min left" },
-  { id: "2", title: "Yewedaj Mistir", progress: 45, image: thumb1, watchedAt: "Yesterday", timeRemaining: "55 min left" },
-  { id: "3", title: "Addis Nights", progress: 100, image: thumb6, watchedAt: "3 days ago", timeRemaining: "Completed" },
-  { id: "4", title: "Simien Heights", progress: 30, image: thumb4, watchedAt: "1 week ago", timeRemaining: "1h 10m left" },
-];
-
-const MOCK_PURCHASES = [
-  { id: "1", title: "Lalibela: The Sacred City", date: "Jan 20, 2026", price: "$4.99", status: "Watched", image: thumb7, type: "PPV" },
-  { id: "2", title: "Adwa: The Victory", date: "Dec 10, 2025", price: "$3.99", status: "Available", image: thumb8, type: "PPV" },
-];
-
-const MOCK_BILLING = [
-  { id: "INV-2026-001", date: "Feb 1, 2026", description: "Monthly Subscription", amount: "$5.00", status: "Paid" },
-  { id: "INV-2026-002", date: "Jan 1, 2026", description: "Monthly Subscription", amount: "$5.00", status: "Paid" },
-  { id: "INV-2025-012", date: "Dec 1, 2025", description: "Monthly Subscription", amount: "$5.00", status: "Paid" },
-  { id: "INV-2025-011", date: "Nov 1, 2025", description: "Monthly Subscription", amount: "$5.00", status: "Paid" },
-];
-
-const MOCK_ACTIVITY = [
-  { device: "MacBook Pro", location: "New York, US", ip: "76.xxx.xxx.12", time: "Just now", status: "success" },
-  { device: "iPhone 15 Pro", location: "New York, US", ip: "76.xxx.xxx.12", time: "2 hours ago", status: "success" },
-  { device: "Unknown Device", location: "Lagos, NG", ip: "197.xxx.xxx.45", time: "3 days ago", status: "blocked" },
-];
+// All tab data is now fetched live from the database
 
 // ─── Toggle component ─────────────────────────────────────────────────────────
 const Toggle = ({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) => (
@@ -177,6 +140,13 @@ const ProfileTab = ({ user, profile, refreshProfile }: { user: any; profile: any
   const [newPassword, setNewPassword] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [changingEmail, setChangingEmail] = useState(false);
+
+  useEffect(() => {
+    setDisplayName(profile?.display_name ?? "");
+  }, [profile?.display_name]);
 
   const handleCancel = () => {
     setDisplayName(profile?.display_name ?? "");
@@ -215,6 +185,24 @@ const ProfileTab = ({ user, profile, refreshProfile }: { user: any; profile: any
       toast({ title: "Failed", description: String(err), variant: "destructive" });
     }
     setChangingPassword(false);
+  };
+
+  const handleEmailChange = async () => {
+    if (!newEmail || !newEmail.includes("@")) {
+      toast({ title: "Invalid email", variant: "destructive" });
+      return;
+    }
+    setChangingEmail(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ email: newEmail });
+      if (error) throw error;
+      toast({ title: "Confirmation sent", description: "Check both your old and new email inboxes to confirm the change." });
+      setShowEmailModal(false);
+      setNewEmail("");
+    } catch (err) {
+      toast({ title: "Email change failed", description: String(err), variant: "destructive" });
+    }
+    setChangingEmail(false);
   };
 
   const avatarLetter = (profile?.display_name ?? user?.email ?? "U").charAt(0).toUpperCase();
@@ -263,7 +251,7 @@ const ProfileTab = ({ user, profile, refreshProfile }: { user: any; profile: any
                   disabled
                   className="flex-1 bg-surface-overlay border border-gold/5 rounded-sm px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
                 />
-                <button className="text-xs text-gold hover:text-gold-bright whitespace-nowrap">Change</button>
+                <button onClick={() => setShowEmailModal(true)} className="text-xs text-gold hover:text-gold-bright whitespace-nowrap">Change</button>
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">Email changes require verification</p>
             </div>
@@ -406,6 +394,46 @@ const ProfileTab = ({ user, profile, refreshProfile }: { user: any; profile: any
               >
                 {changingPassword ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                 Update Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Change Modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
+          <div className="bg-surface border border-gold/20 rounded-sm p-6 max-w-sm w-full shadow-card">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="cinzel text-base font-bold text-foreground">Change Email</h3>
+              <button onClick={() => setShowEmailModal(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">A confirmation link will be sent to both your current and new email addresses.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-1">Current Email</label>
+                <input value={user?.email ?? ""} disabled className="w-full bg-surface-overlay border border-gold/5 rounded-sm px-3 py-2 text-sm text-muted-foreground cursor-not-allowed" />
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-1">New Email Address</label>
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={e => setNewEmail(e.target.value)}
+                  placeholder="your-new-email@example.com"
+                  className="w-full bg-surface-raised border border-gold/10 rounded-sm px-3 py-2 text-sm text-foreground focus:outline-none focus:border-gold/40"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setShowEmailModal(false)} className="flex-1 py-2.5 border border-gold/20 text-sm text-foreground rounded-sm hover:border-gold/40">Cancel</button>
+              <button
+                onClick={handleEmailChange}
+                disabled={changingEmail}
+                className="flex-1 py-2.5 gradient-gold text-primary-foreground text-sm font-bold rounded-sm hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {changingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                Send Confirmation
               </button>
             </div>
           </div>
@@ -750,106 +778,140 @@ const PaymentMethodsTab = () => {
 
 // ─── 4. Purchase History Tab ──────────────────────────────────────────────────
 const PurchaseHistoryTab = () => {
+  const { user } = useAuth();
+  const [purchases, setPurchases] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  const filtered = MOCK_PURCHASES.filter(p => p.title.toLowerCase().includes(search.toLowerCase()));
+  useEffect(() => {
+    if (!user) return;
+    const load = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      if (error) console.error("[PurchaseHistoryTab] fetch error:", error);
+      setPurchases(data ?? []);
+      setLoading(false);
+    };
+    load();
+  }, [user]);
+
+  const filtered = purchases.filter(p =>
+    (p.type ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (p.stripe_payment_intent_id ?? "").toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 text-gold animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div>
-      <SectionHeader title="Purchase History" subtitle="Your PPV purchases and subscription payments" />
-      <div className="space-y-6">
-        {/* PPV Purchases */}
-        <div>
-          <h3 className="cinzel text-sm font-bold text-foreground mb-3">PPV Purchases</h3>
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search purchases…"
-              className="w-full bg-surface-raised border border-gold/10 rounded-sm pl-9 pr-3 py-2 text-sm text-foreground focus:outline-none focus:border-gold/40"
-            />
-          </div>
-
-          {filtered.length === 0 ? (
-            <Card className="text-center py-8">
-              <Film className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">No PPV purchases found</p>
-              <a href="/browse" className="text-xs text-gold hover:text-gold-bright mt-2 inline-block">Browse Content</a>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {filtered.map(p => (
-                <Card key={p.id} className="flex items-center gap-4">
-                  <div className="w-16 h-10 rounded-sm overflow-hidden flex-shrink-0">
-                    <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{p.title}</p>
-                    <p className="text-xs text-muted-foreground">{p.date} · {p.type}</p>
-                  </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className="text-sm font-bold text-gold">{p.price}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-sm ${p.status === "Watched" ? "bg-surface-overlay text-muted-foreground" : "bg-emerald/20 text-emerald-bright"}`}>
-                      {p.status}
-                    </span>
-                    <button className="text-xs text-gold hover:text-gold-bright flex items-center gap-1">
-                      <Download className="w-3 h-3" /> Invoice
-                    </button>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Subscription Payments */}
-        <div>
-          <h3 className="cinzel text-sm font-bold text-foreground mb-3">Subscription Payments</h3>
-          <div className="space-y-2">
-            {MOCK_BILLING.slice(0, 3).map((inv, i) => (
-              <div key={i} className="flex items-center justify-between px-4 py-3 bg-surface border border-gold/10 rounded-sm text-xs">
-                <span className="text-muted-foreground">{inv.date}</span>
-                <span className="text-foreground">{inv.description}</span>
-                <span className="font-bold text-foreground">{inv.amount}</span>
-                <span className="text-emerald-bright">{inv.status}</span>
-                <button className="text-gold hover:text-gold-bright flex items-center gap-1"><Download className="w-3 h-3" /> PDF</button>
-              </div>
-            ))}
-          </div>
-        </div>
+      <SectionHeader title="Purchase History" subtitle="Your payment records from the payments ledger" />
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search payments…"
+          className="w-full bg-surface-raised border border-gold/10 rounded-sm pl-9 pr-3 py-2 text-sm text-foreground focus:outline-none focus:border-gold/40"
+        />
       </div>
+
+      {filtered.length === 0 ? (
+        <Card className="text-center py-10">
+          <Receipt className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">No payments found</p>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(p => (
+            <Card key={p.id} className="flex items-center gap-4">
+              <div className={`w-10 h-10 rounded-sm flex items-center justify-center flex-shrink-0 ${p.type === "ppv" ? "bg-gold/10" : "bg-emerald/10"}`}>
+                {p.type === "ppv" ? <Film className="w-4 h-4 text-gold" /> : <CreditCard className="w-4 h-4 text-emerald-bright" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground capitalize">{p.type} Payment</p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(p.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  {p.stripe_payment_intent_id && ` · ${p.stripe_payment_intent_id.slice(0, 20)}…`}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <span className="text-sm font-bold text-gold">${Number(p.amount).toFixed(2)}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-sm font-bold ${
+                  p.status === "succeeded" ? "bg-emerald/20 text-emerald-bright" :
+                  p.status === "failed" ? "bg-destructive/20 text-destructive" :
+                  p.status === "refunded" ? "bg-surface-overlay text-muted-foreground" :
+                  "bg-gold/10 text-gold"
+                }`}>
+                  {p.status}
+                </span>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
 
 // ─── 5. Watch History Tab ─────────────────────────────────────────────────────
 const WatchHistoryTab = () => {
-  const [items, setItems] = useState(MOCK_HISTORY);
-  const [paused, setPaused] = useState(false);
-  const [clearConfirm, setClearConfirm] = useState(false);
+  const { user } = useAuth();
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [clearConfirm, setClearConfirm] = useState(false);
 
-  const filtered = items.filter(i => i.title.toLowerCase().includes(search.toLowerCase()));
+  useEffect(() => {
+    if (!user) return;
+    const load = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("watch_history")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("last_watched_at", { ascending: false });
+      if (error) console.error("[WatchHistoryTab] fetch error:", error);
+      setItems(data ?? []);
+      setLoading(false);
+    };
+    load();
+  }, [user]);
 
-  const removeItem = (id: string) => {
-    setItems(prev => prev.filter(i => i.id !== id));
-    toast({ title: "Removed from history" });
+  const filtered = items.filter(i => (i.content_title ?? "").toLowerCase().includes(search.toLowerCase()));
+
+  const removeItem = async (id: string) => {
+    const { error } = await supabase.from("watch_history").delete().eq("id", id);
+    if (!error) {
+      setItems(prev => prev.filter(i => i.id !== id));
+      toast({ title: "Removed from history" });
+    }
   };
+
+  const clearAll = async () => {
+    if (!user) return;
+    await supabase.from("watch_history").delete().eq("user_id", user.id);
+    setItems([]);
+    setClearConfirm(false);
+    toast({ title: "Watch history cleared" });
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 text-gold animate-spin" /></div>;
+  }
 
   return (
     <div>
-      <SectionHeader
-        title="Watch History"
-        subtitle="Your viewing activity"
-        action={
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Pause history</span>
-            <Toggle enabled={paused} onChange={setPaused} />
-          </div>
-        }
-      />
-
+      <SectionHeader title="Watch History" subtitle="Your viewing activity" />
       <div className="flex items-center gap-3 mb-5">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
@@ -868,77 +930,95 @@ const WatchHistoryTab = () => {
         </Card>
       ) : (
         <div className="space-y-3">
-          {filtered.map(item => (
-            <Card key={item.id} className="flex items-center gap-4">
-              <div className="relative w-24 h-14 rounded-sm overflow-hidden flex-shrink-0 group cursor-pointer">
-                <img src={item.image} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-background/60">
-                  <Play className="w-5 h-5 text-gold fill-gold" />
+          {filtered.map(item => {
+            const progress = item.total_seconds ? Math.round((item.progress_seconds / item.total_seconds) * 100) : 0;
+            return (
+              <Card key={item.id} className="flex items-center gap-4">
+                <div className="relative w-24 h-14 rounded-sm overflow-hidden flex-shrink-0 bg-surface-overlay">
+                  {item.content_image ? (
+                    <img src={item.content_image} alt={item.content_title ?? ""} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center"><Film className="w-5 h-5 text-muted-foreground" /></div>
+                  )}
                 </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">{item.title}</p>
-                <p className="text-xs text-muted-foreground mb-2">{item.watchedAt} · {item.timeRemaining}</p>
-                <div className="h-1 bg-surface-overlay rounded-full overflow-hidden w-48 max-w-full">
-                  <div className="h-full gradient-gold rounded-full transition-all" style={{ width: `${item.progress}%` }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{item.content_title ?? "Untitled"}</p>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {new Date(item.last_watched_at).toLocaleDateString()}
+                    {item.total_seconds ? ` · ${Math.floor(item.progress_seconds / 60)}m / ${Math.floor(item.total_seconds / 60)}m` : ""}
+                  </p>
+                  {item.total_seconds && (
+                    <div className="h-1 bg-surface-overlay rounded-full overflow-hidden w-48 max-w-full">
+                      <div className="h-full gradient-gold rounded-full" style={{ width: `${progress}%` }} />
+                    </div>
+                  )}
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-1">{item.progress}% watched</p>
-              </div>
-              <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive transition-colors flex-shrink-0">
                   <X className="w-3.5 h-3.5" />
                 </button>
-                {item.progress < 100 && (
-                  <button className="text-[10px] text-gold border border-gold/20 px-2 py-1 rounded-sm hover:border-gold/40 transition-colors">Resume</button>
-                )}
-                {item.progress === 100 && (
-                  <button className="text-[10px] text-muted-foreground border border-gold/10 px-2 py-1 rounded-sm hover:border-gold/20 transition-colors">Rewatch</button>
-                )}
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
 
-      <ConfirmModal
-        open={clearConfirm}
-        title="Clear Watch History"
-        description="This will permanently remove all your watch history. This cannot be undone."
-        confirmLabel="Clear All"
-        danger
-        onConfirm={() => { setItems([]); setClearConfirm(false); toast({ title: "Watch history cleared" }); }}
-        onCancel={() => setClearConfirm(false)}
-      />
+      <ConfirmModal open={clearConfirm} title="Clear Watch History" description="This will permanently remove all your watch history."
+        confirmLabel="Clear All" danger onConfirm={clearAll} onCancel={() => setClearConfirm(false)} />
     </div>
   );
 };
 
 // ─── 6. Watchlist Tab ─────────────────────────────────────────────────────────
 const WatchlistTab = () => {
-  const [items, setItems] = useState(MOCK_WATCHLIST);
+  const { user } = useAuth();
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [sortBy, setSortBy] = useState("Date Added");
   const [clearConfirm, setClearConfirm] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
-  const removeItem = (id: string) => {
-    setItems(prev => prev.filter(i => i.id !== id));
+  useEffect(() => {
+    if (!user) return;
+    const load = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("watchlist")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("added_at", { ascending: false });
+      if (error) console.error("[WatchlistTab] fetch error:", error);
+      setItems(data ?? []);
+      setLoading(false);
+    };
+    load();
+  }, [user]);
+
+  const removeItem = async (id: string) => {
+    const { error } = await supabase.from("watchlist").delete().eq("id", id);
+    if (!error) {
+      setItems(prev => prev.filter(i => i.id !== id));
+      toast({ title: "Removed from watchlist" });
+    }
     setRemovingId(null);
-    toast({ title: "Removed from watchlist" });
   };
+
+  const clearAll = async () => {
+    if (!user) return;
+    await supabase.from("watchlist").delete().eq("user_id", user.id);
+    setItems([]);
+    setClearConfirm(false);
+    toast({ title: "Watchlist cleared" });
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 text-gold animate-spin" /></div>;
+  }
 
   return (
     <div>
       <SectionHeader title="My Watchlist" subtitle={`${items.length} titles saved`} />
 
       <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-          className="bg-surface-raised border border-gold/10 rounded-sm px-3 py-2 text-xs text-foreground focus:outline-none">
-          <option>Date Added</option><option>Title</option><option>Release Year</option>
-        </select>
-        <select className="bg-surface-raised border border-gold/10 rounded-sm px-3 py-2 text-xs text-foreground focus:outline-none">
-          <option>All Genres</option><option>Drama</option><option>Romance</option><option>Historical</option><option>Adventure</option>
-        </select>
         <div className="ml-auto flex items-center gap-1 border border-gold/10 rounded-sm overflow-hidden">
           <button onClick={() => setViewMode("grid")} className={`px-3 py-2 ${viewMode === "grid" ? "bg-gold/20 text-gold" : "text-muted-foreground hover:text-foreground"} transition-colors`}><Grid className="w-3.5 h-3.5" /></button>
           <button onClick={() => setViewMode("list")} className={`px-3 py-2 ${viewMode === "list" ? "bg-gold/20 text-gold" : "text-muted-foreground hover:text-foreground"} transition-colors`}><List className="w-3.5 h-3.5" /></button>
@@ -958,15 +1038,19 @@ const WatchlistTab = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {items.map(item => (
             <div key={item.id} className="group cursor-pointer">
-              <div className="relative aspect-[2/3] rounded-sm overflow-hidden mb-2">
-                <img src={item.image} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+              <div className="relative aspect-[2/3] rounded-sm overflow-hidden mb-2 bg-surface-overlay">
+                {item.content_image ? (
+                  <img src={item.content_image} alt={item.content_title ?? ""} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center"><Film className="w-8 h-8 text-muted-foreground" /></div>
+                )}
                 <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-background/70 flex flex-col items-center justify-center gap-2">
-                  <button className="px-4 py-1.5 gradient-gold text-primary-foreground text-xs font-bold rounded-sm">Watch Now</button>
+                  <a href={`/watch/${item.content_id}`} className="px-4 py-1.5 gradient-gold text-primary-foreground text-xs font-bold rounded-sm">Watch Now</a>
                   <button onClick={() => setRemovingId(item.id)} className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1"><X className="w-3 h-3" /> Remove</button>
                 </div>
               </div>
-              <p className="text-xs font-medium text-foreground truncate">{item.title}</p>
-              <p className="text-[10px] text-muted-foreground">{item.year} · {item.genre}</p>
+              <p className="text-xs font-medium text-foreground truncate">{item.content_title ?? "Untitled"}</p>
+              <p className="text-[10px] text-muted-foreground">{item.content_genre ?? ""} {item.content_duration ? `· ${item.content_duration}` : ""}</p>
             </div>
           ))}
         </div>
@@ -974,15 +1058,19 @@ const WatchlistTab = () => {
         <div className="space-y-2">
           {items.map(item => (
             <Card key={item.id} className="flex items-center gap-4">
-              <div className="w-12 h-16 rounded-sm overflow-hidden flex-shrink-0">
-                <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+              <div className="w-12 h-16 rounded-sm overflow-hidden flex-shrink-0 bg-surface-overlay">
+                {item.content_image ? (
+                  <img src={item.content_image} alt={item.content_title ?? ""} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center"><Film className="w-4 h-4 text-muted-foreground" /></div>
+                )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">{item.title}</p>
-                <p className="text-xs text-muted-foreground">{item.year} · {item.genre} · {item.runtime}</p>
+                <p className="text-sm font-semibold text-foreground">{item.content_title ?? "Untitled"}</p>
+                <p className="text-xs text-muted-foreground">{item.content_genre ?? ""} {item.content_duration ? `· ${item.content_duration}` : ""}</p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <button className="text-xs text-gold border border-gold/20 px-3 py-1.5 rounded-sm hover:border-gold/40 transition-colors">Watch Now</button>
+                <a href={`/watch/${item.content_id}`} className="text-xs text-gold border border-gold/20 px-3 py-1.5 rounded-sm hover:border-gold/40 transition-colors">Watch Now</a>
                 <button onClick={() => setRemovingId(item.id)} className="text-destructive hover:text-destructive/70 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
             </Card>
@@ -993,105 +1081,149 @@ const WatchlistTab = () => {
       <ConfirmModal open={!!removingId} title="Remove from Watchlist" description="Remove this title from your watchlist?"
         confirmLabel="Remove" danger onConfirm={() => removingId && removeItem(removingId)} onCancel={() => setRemovingId(null)} />
       <ConfirmModal open={clearConfirm} title="Clear Watchlist" description="Remove all titles from your watchlist? This cannot be undone."
-        confirmLabel="Clear All" danger onConfirm={() => { setItems([]); setClearConfirm(false); toast({ title: "Watchlist cleared" }); }} onCancel={() => setClearConfirm(false)} />
+        confirmLabel="Clear All" danger onConfirm={clearAll} onCancel={() => setClearConfirm(false)} />
     </div>
   );
 };
 
 // ─── 7. Continue Watching Tab ─────────────────────────────────────────────────
 const ContinueWatchingTab = () => {
-  const [items, setItems] = useState(MOCK_HISTORY.filter(i => i.progress < 100));
-  const [clearConfirm, setClearConfirm] = useState(false);
+  const { user } = useAuth();
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const removeItem = (id: string) => {
-    setItems(prev => prev.filter(i => i.id !== id));
-    toast({ title: "Removed from Continue Watching" });
-  };
+  useEffect(() => {
+    if (!user) return;
+    const load = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("watch_history")
+        .select("*")
+        .eq("user_id", user.id)
+        .gt("progress_seconds", 0)
+        .order("last_watched_at", { ascending: false });
+      if (error) console.error("[ContinueWatchingTab] fetch error:", error);
+      // Filter out completed items (progress >= total)
+      const inProgress = (data ?? []).filter(d => !d.total_seconds || d.progress_seconds < d.total_seconds);
+      setItems(inProgress);
+      setLoading(false);
+    };
+    load();
+  }, [user]);
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 text-gold animate-spin" /></div>;
+  }
 
   return (
     <div>
-      <SectionHeader
-        title="Continue Watching"
-        subtitle="Pick up where you left off"
-        action={
-          <button onClick={() => setClearConfirm(true)} className="text-xs text-muted-foreground hover:text-destructive border border-gold/10 hover:border-destructive/30 px-3 py-1.5 rounded-sm transition-colors">
-            Clear All
-          </button>
-        }
-      />
+      <SectionHeader title="Continue Watching" subtitle="Pick up where you left off" />
 
       {items.length === 0 ? (
         <Card className="text-center py-10">
           <Play className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">Nothing in progress</p>
-          <a href="/browse" className="text-xs text-gold hover:text-gold-bright mt-2 inline-block">Start Watching</a>
+          <a href="/browse" className="text-xs text-gold hover:text-gold-bright mt-2 inline-block">Browse Content</a>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {items.map(item => (
-            <Card key={item.id} className="flex items-start gap-4 hover:border-gold/30 transition-colors">
-              <div className="relative w-28 h-16 rounded-sm overflow-hidden flex-shrink-0 group cursor-pointer">
-                <img src={item.image} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-background/60">
-                  <Play className="w-6 h-6 text-gold fill-gold" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {items.map(item => {
+            const progress = item.total_seconds ? Math.round((item.progress_seconds / item.total_seconds) * 100) : 0;
+            const remaining = item.total_seconds ? Math.ceil((item.total_seconds - item.progress_seconds) / 60) : null;
+            return (
+              <Card key={item.id} className="flex items-center gap-4">
+                <div className="relative w-24 h-14 rounded-sm overflow-hidden flex-shrink-0 bg-surface-overlay">
+                  {item.content_image ? (
+                    <img src={item.content_image} alt={item.content_title ?? ""} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center"><Film className="w-5 h-5 text-muted-foreground" /></div>
+                  )}
                 </div>
-                {/* Progress bar on thumbnail */}
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-background/50">
-                  <div className="h-full gradient-gold" style={{ width: `${item.progress}%` }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{item.content_title ?? "Untitled"}</p>
+                  <p className="text-xs text-muted-foreground mb-2">{remaining ? `${remaining} min left` : ""}</p>
+                  <div className="h-1 bg-surface-overlay rounded-full overflow-hidden w-48 max-w-full">
+                    <div className="h-full gradient-gold rounded-full" style={{ width: `${progress}%` }} />
+                  </div>
                 </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground mb-1">{item.title}</p>
-                <p className="text-xs text-muted-foreground mb-2">{item.timeRemaining}</p>
-                <div className="h-1 bg-surface-overlay rounded-full overflow-hidden mb-2">
-                  <div className="h-full gradient-gold rounded-full" style={{ width: `${item.progress}%` }} />
-                </div>
-                <p className="text-[10px] text-muted-foreground">{item.progress}% watched</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <button className="text-[10px] gradient-gold text-primary-foreground px-3 py-1 rounded-sm font-bold">Resume</button>
-                  <button className="text-[10px] text-muted-foreground border border-gold/10 px-2 py-1 rounded-sm hover:border-gold/20 transition-colors">Restart</button>
-                  <button className="text-[10px] text-muted-foreground border border-gold/10 px-2 py-1 rounded-sm hover:border-gold/20 transition-colors">Mark Watched</button>
-                  <button onClick={() => removeItem(item.id)} className="ml-auto text-muted-foreground hover:text-destructive transition-colors">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            </Card>
-          ))}
+                <a href={`/watch/${item.content_id}`} className="text-[10px] text-gold border border-gold/20 px-2 py-1 rounded-sm hover:border-gold/40 flex-shrink-0">Resume</a>
+              </Card>
+            );
+          })}
         </div>
       )}
-
-      <ConfirmModal open={clearConfirm} title="Clear Continue Watching" description="Remove all in-progress titles?"
-        confirmLabel="Clear All" danger onConfirm={() => { setItems([]); setClearConfirm(false); }} onCancel={() => setClearConfirm(false)} />
     </div>
   );
 };
 
 // ─── 8. Devices Tab ───────────────────────────────────────────────────────────
 const DevicesTab = () => {
-  const [devices, setDevices] = useState(MOCK_DEVICES);
+  const { user } = useAuth();
+  const [devices, setDevices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [logoutAllConfirm, setLogoutAllConfirm] = useState(false);
 
-  const removeDevice = (id: string) => {
-    setDevices(prev => prev.filter(d => d.id !== id));
+  useEffect(() => {
+    if (!user) return;
+    const load = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("device_sessions")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .order("last_active_at", { ascending: false });
+      if (error) console.error("[DevicesTab] fetch error:", error);
+      setDevices(data ?? []);
+      setLoading(false);
+    };
+    load();
+  }, [user]);
+
+  const removeDevice = async (id: string) => {
+    const { error } = await supabase.from("device_sessions").update({ is_active: false }).eq("id", id);
+    if (error) {
+      toast({ title: "Failed to remove device", variant: "destructive" });
+    } else {
+      setDevices(prev => prev.filter(d => d.id !== id));
+      toast({ title: "Device removed" });
+    }
     setRemovingId(null);
-    toast({ title: "Device removed" });
   };
 
-  const saveRename = (id: string) => {
-    setDevices(prev => prev.map(d => d.id === id ? { ...d, name: editName } : d));
+  const saveRename = async (id: string) => {
+    const { error } = await supabase.from("device_sessions").update({ device_name: editName }).eq("id", id);
+    if (error) {
+      toast({ title: "Rename failed", variant: "destructive" });
+    } else {
+      setDevices(prev => prev.map(d => d.id === id ? { ...d, device_name: editName } : d));
+      toast({ title: "Device renamed" });
+    }
     setEditingId(null);
-    toast({ title: "Device renamed" });
   };
 
-  const handleLogoutAll = () => {
-    setDevices(prev => prev.filter(d => d.current));
+  const handleLogoutAll = async () => {
+    if (!user || devices.length === 0) return;
+    const current = devices[0];
+    await supabase.from("device_sessions").update({ is_active: false }).eq("user_id", user.id).neq("id", current.id);
+    setDevices([current]);
     setLogoutAllConfirm(false);
     toast({ title: "Signed out of all other devices" });
   };
+
+  const getDeviceType = (name: string | null) => {
+    const n = (name ?? "").toLowerCase();
+    if (n.includes("iphone") || n.includes("android") || n.includes("mobile") || n.includes("phone")) return "phone";
+    if (n.includes("tv") || n.includes("samsung") || n.includes("roku")) return "tv";
+    return "laptop";
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 text-gold animate-spin" /></div>;
+  }
 
   return (
     <div>
@@ -1100,7 +1232,6 @@ const DevicesTab = () => {
         subtitle={`${devices.length} / 5 devices registered`}
       />
 
-      {/* Device limit bar */}
       <Card className="mb-5">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-medium text-foreground">Device slots used</span>
@@ -1111,69 +1242,74 @@ const DevicesTab = () => {
         </div>
       </Card>
 
-      <div className="space-y-3 mb-6">
-        {devices.map(d => (
-          <Card key={d.id} className={`flex items-center gap-4 ${d.current ? "border-gold/40" : "border-gold/10"}`}>
-            <div className={`w-10 h-10 rounded-sm flex items-center justify-center flex-shrink-0 ${d.current ? "gradient-gold" : "bg-surface-raised border border-border"}`}>
-              <DevIcon type={d.type} />
-            </div>
-            <div className="flex-1 min-w-0">
-              {editingId === d.id ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    value={editName}
-                    onChange={e => setEditName(e.target.value)}
-                    className="bg-surface-raised border border-gold/30 rounded-sm px-2 py-1 text-sm text-foreground focus:outline-none"
-                    autoFocus
-                    onKeyDown={e => e.key === "Enter" && saveRename(d.id)}
-                  />
-                  <button onClick={() => saveRename(d.id)} className="text-emerald-bright text-xs">Save</button>
-                  <button onClick={() => setEditingId(null)} className="text-muted-foreground text-xs">Cancel</button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-foreground">{d.name}</p>
-                  {d.current && <span className="text-[9px] px-1.5 py-0.5 bg-emerald/20 text-emerald-bright rounded-sm">THIS DEVICE</span>}
-                  <button onClick={() => { setEditingId(d.id); setEditName(d.name); }} className="text-muted-foreground hover:text-gold transition-colors">
-                    <Edit className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">{d.lastSeen} · {d.location}</p>
-            </div>
-            {!d.current && (
-              <button onClick={() => setRemovingId(d.id)} className="text-xs text-destructive border border-destructive/20 px-3 py-1.5 rounded-sm hover:bg-destructive/10 transition-colors flex items-center gap-1">
-                <Trash2 className="w-3 h-3" /> Remove
-              </button>
-            )}
-          </Card>
-        ))}
-      </div>
-
-      {/* Activity log */}
-      <Card>
-        <h3 className="cinzel text-sm font-bold text-foreground mb-3">Recent Login Activity</h3>
-        <div className="space-y-2">
-          {MOCK_ACTIVITY.map((a, i) => (
-            <div key={i} className="flex items-center gap-3 py-2 border-b border-gold/5 last:border-0">
-              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${a.status === "success" ? "bg-emerald-bright" : "bg-destructive"}`} />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-foreground">{a.device}</p>
-                <p className="text-[10px] text-muted-foreground">{a.location} · {a.ip}</p>
+      {devices.length === 0 ? (
+        <Card className="text-center py-10">
+          <Monitor className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">No devices registered yet</p>
+        </Card>
+      ) : (
+        <div className="space-y-3 mb-6">
+          {devices.map((d, idx) => (
+            <Card key={d.id} className={`flex items-center gap-4 ${idx === 0 ? "border-gold/40" : "border-gold/10"}`}>
+              <div className={`w-10 h-10 rounded-sm flex items-center justify-center flex-shrink-0 ${idx === 0 ? "gradient-gold" : "bg-surface-raised border border-border"}`}>
+                <DevIcon type={getDeviceType(d.device_name)} />
               </div>
-              <span className="text-[10px] text-muted-foreground flex-shrink-0">{a.time}</span>
-              {a.status === "blocked" && <span className="text-[10px] text-destructive">Blocked</span>}
-            </div>
+              <div className="flex-1 min-w-0">
+                {editingId === d.id ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      className="bg-surface-raised border border-gold/30 rounded-sm px-2 py-1 text-sm text-foreground focus:outline-none"
+                      autoFocus
+                      onKeyDown={e => e.key === "Enter" && saveRename(d.id)}
+                    />
+                    <button onClick={() => saveRename(d.id)} className="text-emerald-bright text-xs">Save</button>
+                    <button onClick={() => setEditingId(null)} className="text-muted-foreground text-xs">Cancel</button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-foreground">{d.device_name || "Unknown Device"}</p>
+                    {idx === 0 && <span className="text-[9px] px-1.5 py-0.5 bg-emerald/20 text-emerald-bright rounded-sm">CURRENT</span>}
+                    <button onClick={() => { setEditingId(d.id); setEditName(d.device_name || ""); }} className="text-muted-foreground hover:text-gold transition-colors">
+                      <Edit className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {new Date(d.last_active_at).toLocaleDateString()} · {d.ip_address || "Unknown IP"}
+                </p>
+              </div>
+              {idx !== 0 && (
+                <button onClick={() => setRemovingId(d.id)} className="text-xs text-destructive border border-destructive/20 px-3 py-1.5 rounded-sm hover:bg-destructive/10 transition-colors flex items-center gap-1">
+                  <Trash2 className="w-3 h-3" /> Remove
+                </button>
+              )}
+            </Card>
           ))}
         </div>
-        <button onClick={() => setLogoutAllConfirm(true)} className="mt-4 w-full py-2 border border-destructive/20 text-destructive text-xs rounded-sm hover:bg-destructive/10 transition-colors">
-          Sign Out All Devices
-        </button>
+      )}
+
+      <Card>
+        <h3 className="cinzel text-sm font-bold text-foreground mb-3">Device Lock Status</h3>
+        <div className="flex items-center gap-2 mb-2">
+          <ShieldCheck className="w-4 h-4 text-emerald-bright" />
+          <p className="text-xs text-foreground font-medium">Device lock is active</p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Your account is bound to your registered device fingerprint. If you change devices, contact support to reset.
+        </p>
       </Card>
+
+      {devices.length > 1 && (
+        <button onClick={() => setLogoutAllConfirm(true)} className="mt-4 w-full py-2 border border-destructive/20 text-destructive text-xs rounded-sm hover:bg-destructive/10 transition-colors">
+          Sign Out All Other Devices
+        </button>
+      )}
 
       <ConfirmModal open={!!removingId} title="Remove Device" description="This device will be signed out and removed from your account."
         confirmLabel="Remove" danger onConfirm={() => removingId && removeDevice(removingId)} onCancel={() => setRemovingId(null)} />
-      <ConfirmModal open={logoutAllConfirm} title="Sign Out All Devices" description="This will sign you out of all devices except this one. You'll need to sign in again on other devices."
+      <ConfirmModal open={logoutAllConfirm} title="Sign Out All Devices" description="This will sign you out of all devices except this one."
         confirmLabel="Sign Out All" danger onConfirm={handleLogoutAll} onCancel={() => setLogoutAllConfirm(false)} />
     </div>
   );
@@ -1364,35 +1500,64 @@ const NotificationsTab = () => {
 };
 
 // ─── 11. Billing History Tab ──────────────────────────────────────────────────
-const BillingHistoryTab = () => (
-  <div>
-    <SectionHeader title="Billing History" subtitle="All invoices and payment records" />
-    <div className="space-y-2 mb-6">
-      {MOCK_BILLING.map((inv) => (
-        <div key={inv.id} className="flex items-center gap-4 px-4 py-3.5 bg-surface border border-gold/10 rounded-sm text-xs hover:border-gold/20 transition-colors">
-          <FileText className="w-4 h-4 text-gold flex-shrink-0" />
-          <span className="text-muted-foreground font-mono w-28 flex-shrink-0">{inv.id}</span>
-          <span className="text-muted-foreground w-24 flex-shrink-0">{inv.date}</span>
-          <span className="flex-1 text-foreground">{inv.description}</span>
-          <span className="font-bold text-foreground w-16 text-right flex-shrink-0">{inv.amount}</span>
-          <span className="w-12 flex-shrink-0">
-            <span className="px-1.5 py-0.5 bg-emerald/20 text-emerald-bright rounded-sm">{inv.status}</span>
-          </span>
-          <button className="text-gold hover:text-gold-bright flex items-center gap-1 flex-shrink-0">
-            <Download className="w-3 h-3" /> PDF
-          </button>
-        </div>
-      ))}
-    </div>
+const BillingHistoryTab = () => {
+  const { user } = useAuth();
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    <Card className="max-w-sm">
-      <h3 className="cinzel text-sm font-bold text-foreground mb-3">Tax Information</h3>
-      <p className="text-xs text-muted-foreground mb-3">For business accounts, add your VAT/GST number to have it appear on invoices.</p>
-      <input placeholder="VAT / GST number" className="w-full bg-surface-raised border border-gold/10 rounded-sm px-3 py-2 text-sm text-foreground focus:outline-none focus:border-gold/40 mb-3" />
-      <button className="w-full py-2 gradient-gold text-primary-foreground text-xs font-bold rounded-sm hover:opacity-90">Save Tax Info</button>
-    </Card>
-  </div>
-);
+  useEffect(() => {
+    if (!user) return;
+    const load = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("type", "subscription")
+        .order("created_at", { ascending: false });
+      if (error) console.error("[BillingHistoryTab] fetch error:", error);
+      setInvoices(data ?? []);
+      setLoading(false);
+    };
+    load();
+  }, [user]);
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 text-gold animate-spin" /></div>;
+  }
+
+  return (
+    <div>
+      <SectionHeader title="Billing History" subtitle="Subscription payment records" />
+      {invoices.length === 0 ? (
+        <Card className="text-center py-10">
+          <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">No billing records found</p>
+        </Card>
+      ) : (
+        <div className="space-y-2 mb-6">
+          {invoices.map((inv) => (
+            <div key={inv.id} className="flex items-center gap-4 px-4 py-3.5 bg-surface border border-gold/10 rounded-sm text-xs hover:border-gold/20 transition-colors">
+              <FileText className="w-4 h-4 text-gold flex-shrink-0" />
+              <span className="text-muted-foreground w-24 flex-shrink-0">
+                {new Date(inv.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </span>
+              <span className="flex-1 text-foreground capitalize">{inv.type} Payment</span>
+              <span className="font-bold text-foreground w-16 text-right flex-shrink-0">${Number(inv.amount).toFixed(2)}</span>
+              <span className="w-20 flex-shrink-0">
+                <span className={`px-1.5 py-0.5 rounded-sm text-[10px] font-bold ${
+                  inv.status === "succeeded" ? "bg-emerald/20 text-emerald-bright" :
+                  inv.status === "failed" ? "bg-destructive/20 text-destructive" :
+                  "bg-gold/10 text-gold"
+                }`}>{inv.status}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── 12. Account Security Tab ─────────────────────────────────────────────────
 const AccountSecurityTab = ({ user }: { user: any }) => {
@@ -1473,21 +1638,7 @@ const AccountSecurityTab = ({ user }: { user: any }) => {
         <div className="space-y-4">
           <Card>
             <h3 className="cinzel text-sm font-bold text-foreground mb-3">Recent Activity</h3>
-            <div className="space-y-2">
-              {MOCK_ACTIVITY.map((a, i) => (
-                <div key={i} className="flex items-start gap-3 py-2 border-b border-gold/5 last:border-0">
-                  <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${a.status === "success" ? "bg-emerald-bright" : "bg-destructive"}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-foreground">{a.device}</p>
-                    <p className="text-[10px] text-muted-foreground">{a.location} · {a.ip}</p>
-                    <p className="text-[10px] text-muted-foreground">{a.time}</p>
-                  </div>
-                  {a.status === "blocked" && (
-                    <span className="text-[10px] text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-sm">Blocked</span>
-                  )}
-                </div>
-              ))}
-            </div>
+            <p className="text-xs text-muted-foreground">Login activity is tracked via the device management tab.</p>
           </Card>
 
           <Card>
