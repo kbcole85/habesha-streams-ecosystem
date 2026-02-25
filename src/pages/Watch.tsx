@@ -188,9 +188,10 @@ const Watch = () => {
   const [contentLoading, setContentLoading] = useState(true);
   const totalSec = content.durationSec;
 
-  const { user, isSubscribed, subscriptionEnd, loading: authLoading } = useAuth();
-  const isPastDue = !isSubscribed && user !== null && subscriptionEnd !== null;
-  const showPaywall = !authLoading && !isSubscribed;
+  const { user, isSubscribed, subscriptionEnd, role, loading: authLoading } = useAuth();
+  const isAdmin = role === "admin";
+  const isPastDue = !isAdmin && !isSubscribed && user !== null && subscriptionEnd !== null;
+  const showPaywall = !authLoading && !isAdmin && !isSubscribed;
 
   /* Fetch video from DB */
   useEffect(() => {
@@ -455,7 +456,7 @@ const Watch = () => {
             )}
 
             {/* ── PPV purchase overlay (for PPV items that the user hasn't bought) ── */}
-            {content.isPPV && !showPaywall && !authLoading && (
+            {content.isPPV && !isAdmin && !showPaywall && !authLoading && (
               <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
                 <div className="text-center px-6">
                   <span className="inline-block px-3 py-1 bg-habesha-red text-foreground text-[10px] font-bold uppercase tracking-widest rounded-sm mb-4">
