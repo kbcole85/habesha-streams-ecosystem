@@ -7,7 +7,6 @@ const logStep = (step: string, details?: unknown) => {
   console.log(`[STRIPE-WEBHOOK] ${step}${d}`);
 };
 
-// Maps Stripe product IDs → plan names (must match check-subscription)
 const PRODUCT_TO_PLAN: Record<string, string> = {
   "prod_U0Wg5zAPSk517W": "basic",
   "prod_U0Wg5HIxekgi8t": "standard",
@@ -15,7 +14,6 @@ const PRODUCT_TO_PLAN: Record<string, string> = {
 };
 
 serve(async (req) => {
-  // Stripe sends POST with raw body; no CORS preflight needed for webhooks
   const signature = req.headers.get("stripe-signature");
   if (!signature) {
     logStep("Missing stripe-signature header");
@@ -41,7 +39,7 @@ serve(async (req) => {
     { auth: { persistSession: false } }
   );
 
-  // Verify the webhook signature
+  // Verify signature
   let event: Stripe.Event;
   const body = await req.text();
   try {
@@ -54,9 +52,31 @@ serve(async (req) => {
 
   logStep("Event received", { type: event.type, id: event.id });
 
+  // ─── Dedup: reject duplicate stripe_event_id ───────────────────────────────
+  const { data: existingEvent } = await supabase
+    .from("subscription_events")
+    .select("id")
+    .eq("stripe_event_id", event.id)
+    .maybeSingle();
+
+  if (existingEvent) {
+    logStep("Duplicate event, skipping", { eventId: event.id });
+    return new Response(JSON.stringify({ received: true, duplicate: true }), {
+      headers: { "Content-Type": "application/json" },
+      status: 200,
+    });
+  }
+
+  // Store raw event
+  await supabase.from("subscription_events").insert({
+    stripe_event_id: event.id,
+    event_type: event.type,
+    raw_payload: event.data.object as Record<string, unknown>,
+    user_id: null, // filled below if resolvable
+  });
+
   // ─── Helper: resolve Stripe customer → Supabase user_id ───────────────────
   const resolveUserId = async (customerId: string): Promise<string | null> => {
-    // 1. Check subscriptions table first (fast path)
     const { data } = await supabase
       .from("subscriptions")
       .select("user_id")
@@ -64,7 +84,6 @@ serve(async (req) => {
       .maybeSingle();
     if (data?.user_id) return data.user_id;
 
-    // 2. Fall back to looking up the customer email in auth
     const customer = await stripe.customers.retrieve(customerId);
     if (customer.deleted || !("email" in customer) || !customer.email) return null;
 
@@ -73,105 +92,132 @@ serve(async (req) => {
     return match?.id ?? null;
   };
 
-  // ─── Event handlers ────────────────────────────────────────────────────────
+  // ─── Audit helper ─────────────────────────────────────────────────────────
+  const audit = async (action: string, targetId: string | null, details?: Record<string, unknown>) => {
+    await supabase.from("audit_logs").insert({
+      actor_id: null,
+      action,
+      target_id: targetId,
+      details: details ?? {},
+      ip: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || null,
+    });
+  };
 
   try {
     switch (event.type) {
-      // ── Subscription activated / trial started ──
       case "customer.subscription.created":
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
         const userId = await resolveUserId(sub.customer as string);
-        if (!userId) { logStep("No user found for customer", { customerId: sub.customer }); break; }
+        if (!userId) { logStep("No user found", { customerId: sub.customer }); break; }
 
         const productId = sub.items.data[0]?.price.product as string | undefined;
         const plan = productId ? (PRODUCT_TO_PLAN[productId] ?? "basic") : "basic";
         const status = sub.status === "active" || sub.status === "trialing" ? "active" : "inactive";
-        const periodEnd   = new Date(sub.current_period_end * 1000).toISOString();
+        const periodEnd = new Date(sub.current_period_end * 1000).toISOString();
         const periodStart = new Date(sub.current_period_start * 1000).toISOString();
-        const trialEnd    = sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null;
+        const trialEnd = sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null;
 
         await supabase.from("subscriptions").upsert({
-          user_id:                userId,
+          user_id: userId,
           plan,
           status,
-          billing_cycle:          "monthly",
-          stripe_customer_id:     sub.customer as string,
+          billing_cycle: "monthly",
+          stripe_customer_id: sub.customer as string,
           stripe_subscription_id: sub.id,
-          current_period_start:   periodStart,
-          current_period_end:     periodEnd,
-          trial_ends_at:          trialEnd,
+          current_period_start: periodStart,
+          current_period_end: periodEnd,
+          trial_ends_at: trialEnd,
         }, { onConflict: "user_id" });
 
-        logStep("Subscription upserted", { userId, plan, status, event: event.type });
+        // Update event with user_id
+        await supabase.from("subscription_events")
+          .update({ user_id: userId })
+          .eq("stripe_event_id", event.id);
+
+        await audit("subscription_upsert", userId, { plan, status, event_type: event.type });
+        logStep("Subscription upserted", { userId, plan, status });
         break;
       }
 
-      // ── Subscription cancelled (via portal, admin, or non-payment) ──
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const userId = await resolveUserId(sub.customer as string);
-        if (!userId) { logStep("No user found for customer", { customerId: sub.customer }); break; }
+        if (!userId) { logStep("No user found", { customerId: sub.customer }); break; }
 
         const periodEnd = new Date(sub.current_period_end * 1000).toISOString();
-
         await supabase.from("subscriptions")
-          .update({
-            status:             "inactive",
-            current_period_end: periodEnd,
-          })
+          .update({ status: "inactive", current_period_end: periodEnd })
           .eq("user_id", userId);
 
-        logStep("Subscription cancelled", { userId, periodEnd });
+        await audit("subscription_cancelled", userId, { periodEnd });
+        logStep("Subscription cancelled", { userId });
         break;
       }
 
-      // ── Successful renewal payment ──
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
-        if (invoice.billing_reason !== "subscription_cycle" &&
-            invoice.billing_reason !== "subscription_update") break;
-
         const customerId = invoice.customer as string;
         const userId = await resolveUserId(customerId);
-        if (!userId) { logStep("No user found for customer", { customerId }); break; }
+        if (!userId) { logStep("No user found", { customerId }); break; }
 
-        // Fetch the latest subscription to get accurate period dates
-        const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
-        if (subs.data.length === 0) break;
+        // Write to payments table
+        await supabase.from("payments").insert({
+          user_id: userId,
+          stripe_payment_intent_id: invoice.payment_intent as string | null,
+          stripe_subscription_id: invoice.subscription as string | null,
+          amount: (invoice.amount_paid ?? 0) / 100,
+          currency: invoice.currency ?? "usd",
+          type: invoice.subscription ? "subscription" : "ppv",
+          status: "succeeded",
+        });
 
-        const sub = subs.data[0];
-        const periodEnd   = new Date(sub.current_period_end * 1000).toISOString();
-        const periodStart = new Date(sub.current_period_start * 1000).toISOString();
+        if (invoice.billing_reason === "subscription_cycle" ||
+            invoice.billing_reason === "subscription_update" ||
+            invoice.billing_reason === "subscription_create") {
+          const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
+          if (subs.data.length > 0) {
+            const s = subs.data[0];
+            await supabase.from("subscriptions")
+              .update({
+                status: "active",
+                current_period_start: new Date(s.current_period_start * 1000).toISOString(),
+                current_period_end: new Date(s.current_period_end * 1000).toISOString(),
+              })
+              .eq("user_id", userId);
+          }
+        }
 
-        await supabase.from("subscriptions")
-          .update({
-            status:               "active",
-            current_period_start: periodStart,
-            current_period_end:   periodEnd,
-          })
-          .eq("user_id", userId);
-
-        logStep("Renewal recorded", { userId, periodEnd });
+        await audit("payment_succeeded", userId, { amount: (invoice.amount_paid ?? 0) / 100 });
+        logStep("Payment succeeded", { userId, amount: invoice.amount_paid });
         break;
       }
 
-      // ── Failed payment (card declined, expired, etc.) ──
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId = invoice.customer as string;
         const userId = await resolveUserId(customerId);
-        if (!userId) { logStep("No user found for customer", { customerId }); break; }
+        if (!userId) { logStep("No user found", { customerId }); break; }
+
+        await supabase.from("payments").insert({
+          user_id: userId,
+          stripe_payment_intent_id: invoice.payment_intent as string | null,
+          stripe_subscription_id: invoice.subscription as string | null,
+          amount: (invoice.amount_due ?? 0) / 100,
+          currency: invoice.currency ?? "usd",
+          type: invoice.subscription ? "subscription" : "ppv",
+          status: "failed",
+        });
 
         await supabase.from("subscriptions")
           .update({ status: "past_due" })
           .eq("user_id", userId);
 
-        logStep("Payment failed — status set to past_due", { userId });
+        await audit("payment_failed", userId);
+        logStep("Payment failed", { userId });
         break;
       }
 
-      // ── Trial will end soon (optional: could send in-app notification here) ──
       case "customer.subscription.trial_will_end": {
         const sub = event.data.object as Stripe.Subscription;
         logStep("Trial ending soon", { subscriptionId: sub.id });

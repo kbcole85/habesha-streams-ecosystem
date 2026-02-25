@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.device-validate]
 verify_jwt = false
+
+[functions.encoding-worker]
+verify_jwt = false

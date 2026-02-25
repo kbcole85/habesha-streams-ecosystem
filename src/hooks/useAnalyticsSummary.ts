@@ -35,10 +35,6 @@ const EMPTY: AnalyticsSummary = {
   suspiciousAttempts: 0,
 };
 
-/**
- * Fetches aggregated analytics data from Supabase tables.
- * Re-fetches every 30 seconds for near-real-time updates.
- */
 export function useAnalyticsSummary() {
   const [data, setData] = useState<AnalyticsSummary>(EMPTY);
   const [loading, setLoading] = useState(true);
@@ -50,36 +46,32 @@ export function useAnalyticsSummary() {
       const weekStart = new Date(Date.now() - 7 * 86400_000).toISOString();
       const monthStart = new Date(Date.now() - 30 * 86400_000).toISOString();
 
-      const [subsRes, eventsRes, loginRes, topVidRes] = await Promise.all([
-        // Active subscribers
+      const [subsRes, eventsRes, loginRes, topVidRes, paymentsRes] = await Promise.all([
         supabase.from("subscriptions").select("id, created_at").eq("status", "active"),
-        // Analytics events
         supabase.from("analytics_events").select("event_type, video_id, metadata, created_at").gte("created_at", monthStart),
-        // Login attempts
         supabase.from("login_attempts").select("attempt_type, created_at").gte("created_at", monthStart),
-        // Top videos by play count
         supabase.from("analytics_events").select("video_id").eq("event_type", "play").gte("created_at", monthStart),
+        // Real revenue from payments table
+        supabase.from("payments").select("amount, type, created_at").eq("status", "succeeded").gte("created_at", monthStart),
       ]);
 
       const subs = subsRes.data ?? [];
       const events = eventsRes.data ?? [];
       const logins = loginRes.data ?? [];
       const plays = topVidRes.data ?? [];
+      const payments = paymentsRes.data ?? [];
 
-      // Subscriber counts
       const totalSubscribers = subs.length;
       const newToday = subs.filter((s) => s.created_at >= todayStart).length;
       const newThisWeek = subs.filter((s) => s.created_at >= weekStart).length;
-      const newThisMonth = subs.length; // already filtered
+      const newThisMonth = subs.length;
 
-      // Event breakdown
       const playEvents = events.filter((e) => e.event_type === "play");
       const completeEvents = events.filter((e) => e.event_type === "complete");
       const totalPlays = playEvents.length;
       const totalCompletions = completeEvents.length;
       const completionRate = totalPlays > 0 ? Math.round((totalCompletions / totalPlays) * 100) : 0;
 
-      // Watch time from metadata.duration_seconds
       const totalWatchSeconds = events
         .filter((e) => e.event_type === "complete" && e.metadata)
         .reduce((sum, e) => {
@@ -88,8 +80,8 @@ export function useAnalyticsSummary() {
         }, 0);
       const totalWatchMinutes = Math.round(totalWatchSeconds / 60);
 
-      // Revenue estimate from subscriptions × plan price
-      const revenueEstimate = totalSubscribers * 9.99;
+      // Revenue from payments table (authoritative)
+      const revenueEstimate = payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
       // Top videos
       const vidCounts: Record<string, number> = {};
@@ -107,25 +99,26 @@ export function useAnalyticsSummary() {
       const loginSuccessRate = totalLogins > 0 ? Math.round((successLogins / totalLogins) * 100) : 100;
       const suspiciousAttempts = logins.filter((l) => l.attempt_type === "device_mismatch").length;
 
-      // Daily revenue chart — last 14 days
+      // Daily revenue from payments table (authoritative)
       const dailyRevenue: AnalyticsSummary["dailyRevenue"] = [];
       for (let i = 13; i >= 0; i--) {
         const d = new Date(Date.now() - i * 86400_000);
         const label = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-        // Use new subscriber events as proxy for subscription revenue
-        const daySubs = subs.filter((s) => {
-          const sd = new Date(s.created_at);
-          return sd.toDateString() === d.toDateString();
-        }).length;
-        const dayPPV = events.filter((e) => {
-          const ed = new Date(e.created_at);
-          return e.event_type === "ppv_purchase" && ed.toDateString() === d.toDateString();
-        }).length;
+        const dayStr = d.toDateString();
+
+        const daySubs = payments.filter((p) => {
+          return p.type === "subscription" && new Date(p.created_at).toDateString() === dayStr;
+        }).reduce((s, p) => s + Number(p.amount), 0);
+
+        const dayPPV = payments.filter((p) => {
+          return p.type === "ppv" && new Date(p.created_at).toDateString() === dayStr;
+        }).reduce((s, p) => s + Number(p.amount), 0);
+
         dailyRevenue.push({
           date: label,
-          subscriptions: daySubs * 9.99,
-          ppv: dayPPV * 7.99,
-          total: daySubs * 9.99 + dayPPV * 7.99,
+          subscriptions: daySubs,
+          ppv: dayPPV,
+          total: daySubs + dayPPV,
         });
       }
 
