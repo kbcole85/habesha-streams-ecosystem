@@ -85,8 +85,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setRole(top.role);
       }
       if (subRes.data) setSubscription(subRes.data);
-    } catch {
-      // silent
+    } catch (err) {
+      console.error("[AuthContext] Failed to fetch profile data:", err);
     }
   };
 
