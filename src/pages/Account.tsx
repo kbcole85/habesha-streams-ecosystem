@@ -125,6 +125,67 @@ const ConfirmModal = ({ open, title, description, confirmLabel = "Confirm", dang
   );
 };
 
+// ─── Redeem Test Code Card ────────────────────────────────────────────────────
+const RedeemTestCodeCard = ({ userId }: { userId?: string }) => {
+  const [code, setCode] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemed, setRedeemed] = useState(false);
+
+  const handleRedeem = async () => {
+    if (!code.trim() || !userId) return;
+    setRedeeming(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("redeem-test-code", {
+        body: { code: code.trim() },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        toast({ title: "Redemption failed", description: data.error, variant: "destructive" });
+      } else {
+        setRedeemed(true);
+        toast({ title: "✅ Test access activated!", description: `Premium plan active until ${new Date(data.expires).toLocaleDateString()}.` });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: String(err), variant: "destructive" });
+    }
+    setRedeeming(false);
+  };
+
+  return (
+    <Card>
+      <h3 className="cinzel text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+        <Key className="w-4 h-4 text-gold" />
+        Redeem Test Code
+      </h3>
+      <p className="text-xs text-muted-foreground mb-3">Enter a test access code to activate a free premium trial.</p>
+      {redeemed ? (
+        <div className="flex items-center gap-2 text-emerald-bright text-sm">
+          <CheckCircle2 className="w-4 h-4" />
+          Test access activated successfully.
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <input
+            value={code}
+            onChange={e => setCode(e.target.value.toUpperCase())}
+            placeholder="e.g. HABTEST-01"
+            maxLength={20}
+            className="flex-1 bg-surface-raised border border-gold/10 rounded-sm px-3 py-2 text-sm text-foreground focus:outline-none focus:border-gold/40 transition-colors uppercase tracking-wider"
+          />
+          <button
+            onClick={handleRedeem}
+            disabled={redeeming || !code.trim()}
+            className="px-4 py-2 gradient-gold text-primary-foreground text-sm font-bold rounded-sm hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+          >
+            {redeeming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            Redeem
+          </button>
+        </div>
+      )}
+    </Card>
+  );
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB COMPONENTS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -357,6 +418,8 @@ const ProfileTab = ({ user, profile, refreshProfile }: { user: any; profile: any
               className="w-full bg-surface-raised border border-gold/10 rounded-sm px-3 py-2 text-sm text-foreground focus:outline-none focus:border-gold/40 transition-colors"
             />
           </Card>
+
+          <RedeemTestCodeCard userId={user?.id} />
         </div>
       </div>
 
