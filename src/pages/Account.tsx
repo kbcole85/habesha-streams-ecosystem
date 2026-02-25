@@ -143,7 +143,7 @@ const RedeemTestCodeCard = ({ userId }: { userId?: string }) => {
         toast({ title: "Redemption failed", description: data.error, variant: "destructive" });
       } else {
         setRedeemed(true);
-        toast({ title: "✅ Test access activated!", description: `Premium plan active until ${new Date(data.expires).toLocaleDateString()}.` });
+        toast({ title: "✅ Access activated!", description: `Subscription active until ${new Date(data.expires).toLocaleDateString()}.` });
       }
     } catch (err) {
       toast({ title: "Error", description: String(err), variant: "destructive" });
@@ -155,20 +155,20 @@ const RedeemTestCodeCard = ({ userId }: { userId?: string }) => {
     <Card>
       <h3 className="cinzel text-sm font-bold text-foreground mb-2 flex items-center gap-2">
         <Key className="w-4 h-4 text-gold" />
-        Redeem Test Code
+        Redeem Access Code
       </h3>
-      <p className="text-xs text-muted-foreground mb-3">Enter a test access code to activate a free premium trial.</p>
+      <p className="text-xs text-muted-foreground mb-3">Enter your access code to activate your subscription.</p>
       {redeemed ? (
         <div className="flex items-center gap-2 text-emerald-bright text-sm">
           <CheckCircle2 className="w-4 h-4" />
-          Test access activated successfully.
+          Access activated successfully.
         </div>
       ) : (
         <div className="flex gap-2">
           <input
             value={code}
             onChange={e => setCode(e.target.value.toUpperCase())}
-            placeholder="e.g. HABTEST-01"
+            placeholder="Enter code"
             maxLength={20}
             className="flex-1 bg-surface-raised border border-gold/10 rounded-sm px-3 py-2 text-sm text-foreground focus:outline-none focus:border-gold/40 transition-colors uppercase tracking-wider"
           />
