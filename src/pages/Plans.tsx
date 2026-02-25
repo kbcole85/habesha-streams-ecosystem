@@ -1,6 +1,6 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Check, Star, Shield, ArrowRight, Gift, Loader2, RefreshCw, Settings, Sparkles } from "lucide-react";
+import { Check, Star, Shield, ArrowRight, Loader2, RefreshCw, Settings, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,9 +10,9 @@ import { toast } from "@/hooks/use-toast";
 const faqs = [
   { q: "Can I cancel anytime?", a: "Yes. Cancel any time from your account settings or via the Stripe billing portal. No cancellation fees, ever." },
   { q: "What payment methods are accepted?", a: "We accept Visa, Mastercard, AMEX, PayPal, Apple Pay, Google Pay, and more via Stripe." },
-  { q: "Is there a free trial?", a: "Yes! Your subscription includes a 7-day free trial. Your card is only charged after the trial ends." },
+  { q: "How does billing work?", a: "You are charged $5/month starting immediately. No trial period — instant access to all content." },
   { q: "Can I watch on multiple devices?", a: "Yes, you can stream on up to 5 devices simultaneously." },
-  { q: "Is PPV content included in subscriptions?", a: "PPV content is separate and requires individual purchase. Subscribers can buy PPV events at any time." },
+  { q: "Is PPV content included in subscriptions?", a: "PPV content is separate and requires individual purchase. Anyone can buy PPV events." },
   { q: "What regions are available?", a: "Habesha Streams is available globally. Stripe supports 135+ currencies." },
 ];
 
@@ -38,7 +38,7 @@ const Plans = () => {
 
   useEffect(() => {
     if (searchParams.get("success") === "true") {
-      toast({ title: "🎉 Subscription activated!", description: "Welcome to Habesha Streams. Your 7-day trial has started." });
+      toast({ title: "🎉 Subscription activated!", description: "Welcome to Habesha Streams. Enjoy unlimited streaming!" });
       let attempts = 0;
       const poll = setInterval(async () => {
         await checkSubscription();
@@ -89,8 +89,8 @@ const Plans = () => {
         <div className="absolute inset-0 habesha-pattern opacity-40" />
         <div className="relative z-10">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <Gift className="w-4 h-4 text-gold" />
-            <span className="text-xs text-gold font-bold tracking-widest uppercase">7-Day Free Trial</span>
+            <Star className="w-4 h-4 text-gold" />
+            <span className="text-xs text-gold font-bold tracking-widest uppercase">Instant Access</span>
           </div>
           <h1 className="cinzel text-4xl md:text-5xl font-black text-foreground mb-4">
             Start Streaming <span className="gold-shimmer">Today</span>
@@ -152,7 +152,7 @@ const Plans = () => {
             <span className="text-muted-foreground text-sm mb-1">/month</span>
           </div>
 
-          <p className="text-xs text-muted-foreground mb-6">Billed monthly · 7-day free trial</p>
+          <p className="text-xs text-muted-foreground mb-6">Billed monthly · Cancel anytime</p>
 
           {/* Features */}
           <ul className="space-y-2.5 mb-8 text-left">
@@ -183,7 +183,7 @@ const Plans = () => {
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
-                  Start Free Trial
+                  Subscribe — $5/month
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
