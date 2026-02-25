@@ -92,6 +92,62 @@ serve(async (req) => {
 
   try {
     switch (event.type) {
+      // ── Checkout completed — CRITICAL for first-time subscription activation ──
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        logStep("Checkout session completed", { sessionId: session.id, mode: session.mode });
+
+        // Get user_id from metadata
+        const userId = session.metadata?.userId ?? null;
+        const customerId = session.customer as string | null;
+
+        if (!userId) {
+          logStep("No userId in session metadata, trying customer resolve");
+        }
+
+        const resolvedUserId = userId || (customerId ? await resolveUserId(customerId) : null);
+
+        if (!resolvedUserId) {
+          logStep("Cannot resolve user for checkout session", { sessionId: session.id });
+          break;
+        }
+
+        if (session.mode === "subscription" && session.subscription) {
+          // Fetch the subscription from Stripe to get period details
+          const sub = await stripe.subscriptions.retrieve(session.subscription as string);
+          const periodEnd = new Date(sub.current_period_end * 1000).toISOString();
+          const periodStart = new Date(sub.current_period_start * 1000).toISOString();
+
+          // Update profiles — mark as subscribed immediately
+          await supabase.from("profiles").update({
+            is_subscribed: true,
+            subscription_period_end: periodEnd,
+          }).eq("id", resolvedUserId);
+
+          // Sync subscriptions table
+          await supabase.from("subscriptions").upsert({
+            user_id: resolvedUserId,
+            plan: "monthly",
+            status: "active",
+            billing_cycle: "monthly",
+            stripe_customer_id: customerId ?? sub.customer as string,
+            stripe_subscription_id: sub.id,
+            current_period_start: periodStart,
+            current_period_end: periodEnd,
+          }, { onConflict: "user_id" });
+
+          await audit("checkout_completed", resolvedUserId, {
+            session_id: session.id,
+            subscription_id: sub.id,
+          });
+
+          logStep("Checkout → subscription activated", { userId: resolvedUserId, subscriptionId: sub.id });
+        }
+
+        await supabase.from("subscription_events").update({ user_id: resolvedUserId }).eq("stripe_event_id", event.id);
+        break;
+      }
+
       // ── Subscription created/updated ──
       case "customer.subscription.created":
       case "customer.subscription.updated": {
@@ -103,13 +159,11 @@ serve(async (req) => {
         const periodEnd = new Date(sub.current_period_end * 1000).toISOString();
         const periodStart = new Date(sub.current_period_start * 1000).toISOString();
 
-        // Update profiles — single source of truth for access
         await supabase.from("profiles").update({
           is_subscribed: isActive,
           subscription_period_end: periodEnd,
         }).eq("id", userId);
 
-        // Sync subscriptions table
         await supabase.from("subscriptions").upsert({
           user_id: userId,
           plan: "monthly",
@@ -119,7 +173,6 @@ serve(async (req) => {
           stripe_subscription_id: sub.id,
           current_period_start: periodStart,
           current_period_end: periodEnd,
-          trial_ends_at: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
         }, { onConflict: "user_id" });
 
         await supabase.from("subscription_events").update({ user_id: userId }).eq("stripe_event_id", event.id);
@@ -159,7 +212,6 @@ serve(async (req) => {
           status: "succeeded",
         });
 
-        // On subscription payment, ensure profile is marked subscribed
         if (invoice.subscription) {
           const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
           if (subs.data.length > 0) {

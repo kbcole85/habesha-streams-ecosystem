@@ -19,6 +19,7 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import RefundPolicy from "./pages/RefundPolicy";
 import CookiePolicy from "./pages/CookiePolicy";
+import SubscriptionSuccess from "./pages/SubscriptionSuccess";
 import NotFound from "./pages/NotFound";
 import { Play, ShieldAlert, LogOut } from "lucide-react";
 
@@ -75,6 +76,7 @@ const AppRoutes = () => {
       <Route path="/browse" element={<Browse />} />
       <Route path="/watch/:id" element={<Watch />} />
       <Route path="/plans" element={<Plans />} />
+      <Route path="/subscription-success" element={<SubscriptionSuccess />} />
       <Route
         path="/admin"
         element={

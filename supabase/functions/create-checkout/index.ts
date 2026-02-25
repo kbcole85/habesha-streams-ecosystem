@@ -49,7 +49,7 @@ serve(async (req) => {
       subscription_data: {
         metadata: { userId: user.id },
       },
-      success_url: `${origin}/plans?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${origin}/subscription-success`,
       cancel_url: `${origin}/plans?canceled=true`,
       metadata: { userId: user.id },
     });
