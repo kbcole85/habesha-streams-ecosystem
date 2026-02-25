@@ -7,12 +7,6 @@ const logStep = (step: string, details?: unknown) => {
   console.log(`[STRIPE-WEBHOOK] ${step}${d}`);
 };
 
-const PRODUCT_TO_PLAN: Record<string, string> = {
-  "prod_U0Wg5zAPSk517W": "basic",
-  "prod_U0Wg5HIxekgi8t": "standard",
-  "prod_U0Wi3VbILnbCB2": "premium",
-};
-
 serve(async (req) => {
   const signature = req.headers.get("stripe-signature");
   if (!signature) {
@@ -21,16 +15,10 @@ serve(async (req) => {
   }
 
   const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
-  if (!webhookSecret) {
-    logStep("STRIPE_WEBHOOK_SECRET not set");
-    return new Response("Webhook secret not configured", { status: 500 });
-  }
+  if (!webhookSecret) return new Response("Webhook secret not configured", { status: 500 });
 
   const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-  if (!stripeKey) {
-    logStep("STRIPE_SECRET_KEY not set");
-    return new Response("Stripe key not configured", { status: 500 });
-  }
+  if (!stripeKey) return new Response("Stripe key not configured", { status: 500 });
 
   const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
   const supabase = createClient(
@@ -39,7 +27,6 @@ serve(async (req) => {
     { auth: { persistSession: false } }
   );
 
-  // Verify signature
   let event: Stripe.Event;
   const body = await req.text();
   try {
@@ -52,7 +39,7 @@ serve(async (req) => {
 
   logStep("Event received", { type: event.type, id: event.id });
 
-  // ─── Dedup: reject duplicate stripe_event_id ───────────────────────────────
+  // Dedup
   const { data: existingEvent } = await supabase
     .from("subscription_events")
     .select("id")
@@ -72,10 +59,10 @@ serve(async (req) => {
     stripe_event_id: event.id,
     event_type: event.type,
     raw_payload: event.data.object as Record<string, unknown>,
-    user_id: null, // filled below if resolvable
+    user_id: null,
   });
 
-  // ─── Helper: resolve Stripe customer → Supabase user_id ───────────────────
+  // Resolve Stripe customer → user_id
   const resolveUserId = async (customerId: string): Promise<string | null> => {
     const { data } = await supabase
       .from("subscriptions")
@@ -92,7 +79,7 @@ serve(async (req) => {
     return match?.id ?? null;
   };
 
-  // ─── Audit helper ─────────────────────────────────────────────────────────
+  // Audit helper
   const audit = async (action: string, targetId: string | null, details?: Record<string, unknown>) => {
     await supabase.from("audit_logs").insert({
       actor_id: null,
@@ -105,63 +92,63 @@ serve(async (req) => {
 
   try {
     switch (event.type) {
+      // ── Subscription created/updated ──
       case "customer.subscription.created":
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
         const userId = await resolveUserId(sub.customer as string);
         if (!userId) { logStep("No user found", { customerId: sub.customer }); break; }
 
-        const productId = sub.items.data[0]?.price.product as string | undefined;
-        const plan = productId ? (PRODUCT_TO_PLAN[productId] ?? "basic") : "basic";
-        const status = sub.status === "active" || sub.status === "trialing" ? "active" : "inactive";
+        const isActive = sub.status === "active" || sub.status === "trialing";
         const periodEnd = new Date(sub.current_period_end * 1000).toISOString();
         const periodStart = new Date(sub.current_period_start * 1000).toISOString();
-        const trialEnd = sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null;
 
+        // Update profiles — single source of truth for access
+        await supabase.from("profiles").update({
+          is_subscribed: isActive,
+          subscription_period_end: periodEnd,
+        }).eq("id", userId);
+
+        // Sync subscriptions table
         await supabase.from("subscriptions").upsert({
           user_id: userId,
-          plan,
-          status,
+          plan: "monthly",
+          status: isActive ? "active" : "inactive",
           billing_cycle: "monthly",
           stripe_customer_id: sub.customer as string,
           stripe_subscription_id: sub.id,
           current_period_start: periodStart,
           current_period_end: periodEnd,
-          trial_ends_at: trialEnd,
+          trial_ends_at: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
         }, { onConflict: "user_id" });
 
-        // Update event with user_id
-        await supabase.from("subscription_events")
-          .update({ user_id: userId })
-          .eq("stripe_event_id", event.id);
-
-        await audit("subscription_upsert", userId, { plan, status, event_type: event.type });
-        logStep("Subscription upserted", { userId, plan, status });
+        await supabase.from("subscription_events").update({ user_id: userId }).eq("stripe_event_id", event.id);
+        await audit("subscription_upsert", userId, { status: isActive ? "active" : "inactive", event_type: event.type });
+        logStep("Subscription upserted", { userId, isActive });
         break;
       }
 
+      // ── Subscription deleted ──
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const userId = await resolveUserId(sub.customer as string);
         if (!userId) { logStep("No user found", { customerId: sub.customer }); break; }
 
-        const periodEnd = new Date(sub.current_period_end * 1000).toISOString();
-        await supabase.from("subscriptions")
-          .update({ status: "inactive", current_period_end: periodEnd })
-          .eq("user_id", userId);
+        await supabase.from("profiles").update({ is_subscribed: false }).eq("id", userId);
+        await supabase.from("subscriptions").update({ status: "inactive", current_period_end: new Date(sub.current_period_end * 1000).toISOString() }).eq("user_id", userId);
 
-        await audit("subscription_cancelled", userId, { periodEnd });
+        await audit("subscription_cancelled", userId);
         logStep("Subscription cancelled", { userId });
         break;
       }
 
+      // ── Payment succeeded ──
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId = invoice.customer as string;
         const userId = await resolveUserId(customerId);
         if (!userId) { logStep("No user found", { customerId }); break; }
 
-        // Write to payments table
         await supabase.from("payments").insert({
           user_id: userId,
           stripe_payment_intent_id: invoice.payment_intent as string | null,
@@ -172,19 +159,16 @@ serve(async (req) => {
           status: "succeeded",
         });
 
-        if (invoice.billing_reason === "subscription_cycle" ||
-            invoice.billing_reason === "subscription_update" ||
-            invoice.billing_reason === "subscription_create") {
+        // On subscription payment, ensure profile is marked subscribed
+        if (invoice.subscription) {
           const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
           if (subs.data.length > 0) {
             const s = subs.data[0];
-            await supabase.from("subscriptions")
-              .update({
-                status: "active",
-                current_period_start: new Date(s.current_period_start * 1000).toISOString(),
-                current_period_end: new Date(s.current_period_end * 1000).toISOString(),
-              })
-              .eq("user_id", userId);
+            const periodEnd = new Date(s.current_period_end * 1000).toISOString();
+            await supabase.from("profiles").update({
+              is_subscribed: true,
+              subscription_period_end: periodEnd,
+            }).eq("id", userId);
           }
         }
 
@@ -193,6 +177,7 @@ serve(async (req) => {
         break;
       }
 
+      // ── Payment failed ──
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId = invoice.customer as string;
@@ -209,18 +194,11 @@ serve(async (req) => {
           status: "failed",
         });
 
-        await supabase.from("subscriptions")
-          .update({ status: "past_due" })
-          .eq("user_id", userId);
+        await supabase.from("profiles").update({ is_subscribed: false }).eq("id", userId);
+        await supabase.from("subscriptions").update({ status: "past_due" }).eq("user_id", userId);
 
         await audit("payment_failed", userId);
         logStep("Payment failed", { userId });
-        break;
-      }
-
-      case "customer.subscription.trial_will_end": {
-        const sub = event.data.object as Stripe.Subscription;
-        logStep("Trial ending soon", { subscriptionId: sub.id });
         break;
       }
 

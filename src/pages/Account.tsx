@@ -1917,7 +1917,8 @@ const DeleteAccountTab = ({ signOut, userEmail }: { signOut: () => Promise<void>
 // ═══════════════════════════════════════════════════════════════════════════════
 const Account = () => {
   const [activeTab, setActiveTab] = useState("profile");
-  const { user, profile, stripeSubscription, checkSubscription, signOut, refreshProfile } = useAuth();
+  const { user, profile, isSubscribed, subscriptionEnd, checkSubscription, signOut, refreshProfile } = useAuth();
+  const stripeSubscription = { subscribed: isSubscribed, subscription_end: subscriptionEnd, plan: isSubscribed ? "monthly" : null };
   const navigate = useNavigate();
 
   const handleSignOut = async () => {

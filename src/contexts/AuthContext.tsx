@@ -8,31 +8,18 @@ interface Profile {
   email: string;
   display_name: string | null;
   avatar_url: string | null;
-}
-
-interface Subscription {
-  id: string;
-  plan: string;
-  billing_cycle: string;
-  status: string;
-  current_period_end: string | null;
-}
-
-export interface StripeSubscription {
-  subscribed: boolean;
-  plan: string | null;          // "basic" | "standard" | "premium" | null
-  product_id: string | null;
-  subscription_end: string | null;
+  is_subscribed: boolean;
+  subscription_period_end: string | null;
 }
 
 interface AuthContextValue {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
-  subscription: Subscription | null;
-  stripeSubscription: StripeSubscription;
   role: string | null;
   loading: boolean;
+  isSubscribed: boolean;
+  subscriptionEnd: string | null;
   deviceBlocked: boolean;
   deviceBlockReason: string | null;
   signUp: (email: string, password: string, displayName: string) => Promise<{ error: Error | null }>;
@@ -41,13 +28,6 @@ interface AuthContextValue {
   refreshProfile: () => Promise<void>;
   checkSubscription: () => Promise<void>;
 }
-
-const DEFAULT_STRIPE_SUB: StripeSubscription = {
-  subscribed: false,
-  plan: null,
-  product_id: null,
-  subscription_end: null,
-};
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -61,8 +41,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [stripeSubscription, setStripeSubscription] = useState<StripeSubscription>(DEFAULT_STRIPE_SUB);
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [deviceBlocked, setDeviceBlocked] = useState(false);
@@ -70,21 +48,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchProfileData = async (userId: string) => {
     try {
-      const [profileRes, rolesRes, subRes] = await Promise.all([
+      const [profileRes, rolesRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", userId).single(),
         supabase.from("user_roles").select("role").eq("user_id", userId),
-        supabase.from("subscriptions").select("*").eq("user_id", userId).eq("status", "active").maybeSingle(),
       ]);
-      if (profileRes.data) setProfile(profileRes.data);
+      if (profileRes.data) {
+        setProfile({
+          id: profileRes.data.id,
+          email: profileRes.data.email,
+          display_name: profileRes.data.display_name,
+          avatar_url: profileRes.data.avatar_url,
+          is_subscribed: profileRes.data.is_subscribed ?? false,
+          subscription_period_end: profileRes.data.subscription_period_end ?? null,
+        });
+      }
       if (rolesRes.data && rolesRes.data.length > 0) {
-        // Highest privilege wins: admin > creator > user
         const PRIORITY: Record<string, number> = { admin: 3, creator: 2, user: 1 };
         const top = rolesRes.data.reduce((best, cur) =>
           (PRIORITY[cur.role] ?? 0) > (PRIORITY[best.role] ?? 0) ? cur : best
         );
         setRole(top.role);
       }
-      if (subRes.data) setSubscription(subRes.data);
     } catch (err) {
       console.error("[AuthContext] Failed to fetch profile data:", err);
     }
@@ -94,16 +78,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { data, error } = await supabase.functions.invoke("check-subscription");
       if (error) throw error;
-      setStripeSubscription({
-        subscribed: data.subscribed ?? false,
-        plan: data.plan ?? null,
-        product_id: data.product_id ?? null,
-        subscription_end: data.subscription_end ?? null,
-      });
+      // The edge function updates the profile in DB; refresh local state
+      if (user) {
+        await fetchProfileData(user.id);
+      }
     } catch (err) {
       console.error("[AuthContext] check-subscription error:", err);
     }
-  }, []);
+  }, [user]);
 
   const runDeviceValidation = useCallback(async () => {
     try {
@@ -121,7 +103,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setDeviceBlockReason(null);
       }
     } catch {
-      // Non-critical — allow access if function unavailable
+      // Non-critical
     }
   }, []);
 
@@ -130,8 +112,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    // IMPORTANT: onAuthStateChange callback must NOT be async
-    // Supabase awaits async callbacks which can block getSession
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
         setSession(newSession);
@@ -142,13 +122,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }).catch(() => {
             setLoading(false);
           });
-          setTimeout(() => checkSubscription(), 500);
+          setTimeout(() => {
+            supabase.functions.invoke("check-subscription").then(() => {
+              if (newSession?.user) fetchProfileData(newSession.user.id);
+            });
+          }, 500);
           setTimeout(() => runDeviceValidation(), 800);
         } else {
           setProfile(null);
           setRole(null);
-          setSubscription(null);
-          setStripeSubscription(DEFAULT_STRIPE_SUB);
           setDeviceBlocked(false);
           setDeviceBlockReason(null);
           setLoading(false);
@@ -161,21 +143,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(currentSession?.user ?? null);
       if (currentSession?.user) {
         fetchProfileData(currentSession.user.id).finally(() => setLoading(false));
-        checkSubscription();
+        supabase.functions.invoke("check-subscription").then(() => {
+          if (currentSession?.user) fetchProfileData(currentSession.user.id);
+        });
         runDeviceValidation();
       } else {
         setLoading(false);
       }
     });
 
-    // Safety timeout - never stay loading forever
     const safetyTimer = setTimeout(() => setLoading(false), 5000);
 
     return () => {
       authSub.unsubscribe();
       clearTimeout(safetyTimer);
     };
-  }, [checkSubscription, runDeviceValidation]);
+  }, [runDeviceValidation]);
 
   const signUp = async (email: string, password: string, displayName: string) => {
     const { error } = await supabase.auth.signUp({
@@ -189,7 +172,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (!error) {
-      // Register device on first successful login (non-blocking)
       setTimeout(async () => {
         try {
           const fingerprint = await getDeviceFingerprint();
@@ -197,9 +179,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           await supabase.functions.invoke("device-validate", {
             body: { action: "validate", deviceFingerprint: fingerprint, deviceName },
           });
-        } catch {
-          // non-critical
-        }
+        } catch { /* non-critical */ }
       }, 600);
     }
     return { error };
@@ -209,16 +189,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await supabase.auth.signOut();
     setProfile(null);
     setRole(null);
-    setSubscription(null);
-    setStripeSubscription(DEFAULT_STRIPE_SUB);
     setDeviceBlocked(false);
     setDeviceBlockReason(null);
   };
 
+  const isSubscribed = profile?.is_subscribed ?? false;
+  const subscriptionEnd = profile?.subscription_period_end ?? null;
+
   return (
     <AuthContext.Provider value={{
-      user, session, profile, subscription, stripeSubscription,
-      role, loading, deviceBlocked, deviceBlockReason,
+      user, session, profile, role, loading,
+      isSubscribed, subscriptionEnd,
+      deviceBlocked, deviceBlockReason,
       signUp, signIn, signOut, refreshProfile, checkSubscription
     }}>
       {children}

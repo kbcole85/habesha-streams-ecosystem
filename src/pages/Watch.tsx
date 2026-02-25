@@ -18,30 +18,24 @@ import PPVCheckoutButton from "@/components/PPVCheckoutButton";
 
 /* ──────────────── Paywall Overlay ──────────────── */
 
-const PLANS_CONFIG = {
-  basic:    { priceId: "price_1T2VdG3FkY3jsYkVxnQVPki5", label: "Basic",    price: "$4.99", icon: Zap },
-  standard: { priceId: "price_1T2Vda3FkY3jsYkVd4SPOzZi", label: "Standard", price: "$9.99", icon: Crown },
-  premium:  { priceId: "price_1T2Vf93FkY3jsYkVTMDQJVfS", label: "Premium",  price: "$15.99", icon: Crown },
-} as const;
+const SUBSCRIPTION_PRICE_ID = "price_1T2VdG3FkY3jsYkVxnQVPki5";
 
 const PaywallOverlay = ({ isPastDue, contentTitle }: { isPastDue: boolean; contentTitle: string }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleCheckout = async (planId: keyof typeof PLANS_CONFIG) => {
+  const handleCheckout = async () => {
     if (!user) { navigate("/auth", { state: { from: location.pathname } }); return; }
-    setLoadingPlan(planId);
+    setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("create-checkout", {
-        body: { priceId: PLANS_CONFIG[planId].priceId, planName: planId },
-      });
+      const { data, error } = await supabase.functions.invoke("create-checkout");
       if (error) throw error;
       if (data?.url) window.open(data.url, "_blank");
     } catch (err) {
       toast({ title: "Checkout failed", description: String(err), variant: "destructive" });
     }
-    setLoadingPlan(null);
+    setLoading(false);
   };
 
   const handleManageBilling = async () => {
@@ -56,11 +50,9 @@ const PaywallOverlay = ({ isPastDue, contentTitle }: { isPastDue: boolean; conte
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-md">
-      {/* Blurred preview hint */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-background/80 to-background pointer-events-none" />
 
       <div className="relative z-10 flex flex-col items-center text-center max-w-lg px-6">
-        {/* Icon */}
         <div className="w-16 h-16 rounded-full bg-surface border border-gold/30 flex items-center justify-center mb-5 shadow-lg">
           {isPastDue
             ? <AlertTriangle className="w-7 h-7 text-gold" />
@@ -68,12 +60,10 @@ const PaywallOverlay = ({ isPastDue, contentTitle }: { isPastDue: boolean; conte
           }
         </div>
 
-        {/* Heading */}
         <h2 className="cinzel text-2xl font-black text-foreground mb-2">
           {isPastDue ? "Payment Required" : "Unlock This Content"}
         </h2>
 
-        {/* Subtitle */}
         {isPastDue ? (
           <p className="text-muted-foreground text-sm mb-2">
             Your last payment failed. Update your billing details to continue watching.
@@ -86,7 +76,6 @@ const PaywallOverlay = ({ isPastDue, contentTitle }: { isPastDue: boolean; conte
         )}
 
         {isPastDue ? (
-          /* ── Past-due: just fix billing ── */
           <div className="mt-6 flex flex-col items-center gap-3 w-full max-w-xs">
             <button
               onClick={handleManageBilling}
@@ -102,69 +91,26 @@ const PaywallOverlay = ({ isPastDue, contentTitle }: { isPastDue: boolean; conte
             </button>
           </div>
         ) : (
-          /* ── Not subscribed: choose a plan ── */
-          <div className="mt-6 w-full">
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              {(Object.entries(PLANS_CONFIG) as [keyof typeof PLANS_CONFIG, typeof PLANS_CONFIG[keyof typeof PLANS_CONFIG]][]).map(([id, cfg]) => {
-                const Icon = cfg.icon;
-                const isPopular = id === "standard";
-                return (
-                  <button
-                    key={id}
-                    onClick={() => handleCheckout(id)}
-                    disabled={loadingPlan === id}
-                    className={`relative flex flex-col items-center gap-2 p-4 rounded-sm border transition-all duration-200 disabled:opacity-50 ${
-                      isPopular
-                        ? "border-gold bg-gold/10 shadow-gold"
-                        : "border-gold/20 bg-surface hover:border-gold/50"
-                    }`}
-                  >
-                    {isPopular && (
-                      <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 gradient-gold text-background text-[9px] font-bold rounded-full tracking-wide">
-                        POPULAR
-                      </span>
-                    )}
-                    {loadingPlan === id
-                      ? <Loader2 className="w-5 h-5 text-gold animate-spin" />
-                      : <Icon className={`w-5 h-5 ${isPopular ? "text-gold" : "text-muted-foreground"}`} />
-                    }
-                    <span className={`text-xs font-bold ${isPopular ? "text-gold" : "text-foreground"}`}>{cfg.label}</span>
-                    <span className="text-[11px] text-muted-foreground font-medium">{cfg.price}<span className="text-[9px]">/mo</span></span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <p className="text-[10px] text-muted-foreground mb-4">
-              7-day free trial · Cancel anytime · All plans include full library access
+          <div className="mt-6 w-full max-w-xs flex flex-col items-center gap-4">
+            <button
+              onClick={handleCheckout}
+              disabled={loading}
+              className="w-full py-3 gradient-gold text-background text-sm font-bold rounded-sm hover:opacity-90 transition-all shadow-gold disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Crown className="w-4 h-4" />}
+              Subscribe — $5/month
+            </button>
+            <p className="text-[10px] text-muted-foreground">
+              7-day free trial · Cancel anytime
             </p>
-
-            <div className="flex items-center justify-center gap-4">
-              {user ? (
-                <button
-                  onClick={() => navigate("/plans")}
-                  className="text-xs text-gold hover:underline"
-                >
-                  View full plan comparison →
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={() => navigate("/auth", { state: { from: location.pathname } })}
-                    className="text-xs text-gold hover:underline"
-                  >
-                    Sign in to your account
-                  </button>
-                  <span className="text-muted-foreground/40 text-xs">·</span>
-                  <button
-                    onClick={() => navigate("/plans")}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    See all plans
-                  </button>
-                </>
-              )}
-            </div>
+            {!user && (
+              <button
+                onClick={() => navigate("/auth", { state: { from: location.pathname } })}
+                className="text-xs text-gold hover:underline"
+              >
+                Sign in to your account
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -242,13 +188,9 @@ const Watch = () => {
   const [contentLoading, setContentLoading] = useState(true);
   const totalSec = content.durationSec;
 
-  const { user, stripeSubscription, loading: authLoading } = useAuth();
-  const isSubscribed = stripeSubscription.subscribed;
-  const isPastDue = !isSubscribed &&
-    user !== null &&
-    // If there's a DB subscription record with past_due status, flag it
-    stripeSubscription.subscription_end !== null;
-  const showPaywall = !authLoading && (!isSubscribed || isPastDue);
+  const { user, isSubscribed, subscriptionEnd, loading: authLoading } = useAuth();
+  const isPastDue = !isSubscribed && user !== null && subscriptionEnd !== null;
+  const showPaywall = !authLoading && !isSubscribed;
 
   /* Fetch video from DB */
   useEffect(() => {

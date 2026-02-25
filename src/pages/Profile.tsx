@@ -9,7 +9,7 @@ import {
   Check, AlertCircle, Smartphone, Tv, Laptop,
   Crown, Zap, Settings, RefreshCw, Loader2, Link as LinkIcon
 } from "lucide-react";
-import { useAuth, type StripeSubscription } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import thumb1 from "@/assets/thumb-1.jpg";
 import thumb2 from "@/assets/thumb-2.jpg";
@@ -48,17 +48,15 @@ const tabs = [
 ];
 
 // ─── SubscriptionTab component ────────────────────────────────────────────────
-const PLAN_DETAILS: Record<string, { label: string; desc: string; icon: typeof Crown; price: string }> = {
-  basic: { label: "Basic", desc: "HD streaming · 1 device · Mobile & Web", icon: Zap, price: "$4.99/mo" },
-  standard: { label: "Standard", desc: "Full HD · 2 devices · Download offline", icon: Star, price: "$9.99/mo" },
-  premium: { label: "Premium", desc: "4K Ultra HD · 5 devices · Dolby Atmos", icon: Crown, price: "$15.99/mo" },
-};
+// Removed multi-tier PLAN_DETAILS — single $5/month plan
 
 const SubscriptionTab = ({
-  stripeSubscription,
+  isSubscribed,
+  subscriptionEnd,
   checkSubscription,
 }: {
-  stripeSubscription: StripeSubscription;
+  isSubscribed: boolean;
+  subscriptionEnd: string | null;
   checkSubscription: () => Promise<void>;
 }) => {
   const [portalLoading, setPortalLoading] = useState(false);
@@ -83,41 +81,35 @@ const SubscriptionTab = ({
     toast({ title: "Subscription status refreshed" });
   };
 
-  const planInfo = stripeSubscription.plan ? PLAN_DETAILS[stripeSubscription.plan] : null;
-  const PlanIcon = planInfo?.icon ?? Zap;
-
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {/* Current plan card */}
-      <div className={`bg-surface border rounded-sm p-6 relative overflow-hidden ${stripeSubscription.subscribed ? "border-gold shadow-gold" : "border-gold/20"}`}>
-        {stripeSubscription.subscribed && (
+      <div className={`bg-surface border rounded-sm p-6 relative overflow-hidden ${isSubscribed ? "border-gold shadow-gold" : "border-gold/20"}`}>
+        {isSubscribed && (
           <div className="absolute top-3 right-3 px-2 py-0.5 gradient-gold text-background text-[10px] font-bold rounded-sm">ACTIVE</div>
         )}
-        {stripeSubscription.subscribed && planInfo ? (
+        {isSubscribed ? (
           <>
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 gradient-gold rounded-sm flex items-center justify-center">
-                <PlanIcon className="w-4 h-4 text-background" />
+                <Star className="w-4 h-4 text-background" />
               </div>
               <div>
-                <h2 className="cinzel text-lg font-bold text-gold">{planInfo.label} Plan</h2>
-                <p className="text-xs text-muted-foreground">{planInfo.desc}</p>
+                <h2 className="cinzel text-lg font-bold text-gold">Habesha Streams</h2>
+                <p className="text-xs text-muted-foreground">Full access · Up to 4K · 5 devices</p>
               </div>
             </div>
             <div className="flex items-end gap-1 mb-4">
-              <span className="cinzel text-3xl font-black text-foreground">{planInfo.price.split("/")[0]}</span>
+              <span className="cinzel text-3xl font-black text-foreground">$5</span>
               <span className="text-muted-foreground text-sm mb-1">/mo</span>
             </div>
-            {stripeSubscription.subscription_end && (
+            {subscriptionEnd && (
               <div className="text-xs text-muted-foreground border-t border-gold/10 pt-4 mb-4">
-                <p>Next billing: <span className="text-foreground font-medium">{new Date(stripeSubscription.subscription_end).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span></p>
+                <p>Next billing: <span className="text-foreground font-medium">{new Date(subscriptionEnd).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span></p>
                 <p className="mt-0.5">Renews automatically · Monthly plan</p>
               </div>
             )}
             <div className="flex gap-2">
-              <Link to="/plans" className="flex-1 py-2 text-center border border-gold/20 text-gold text-xs rounded-sm hover:border-gold/50 transition-colors">
-                Change Plan
-              </Link>
               <button
                 onClick={handlePortal}
                 disabled={portalLoading}
@@ -131,12 +123,12 @@ const SubscriptionTab = ({
         ) : (
           <>
             <h2 className="cinzel text-lg font-bold text-foreground mb-2">No Active Subscription</h2>
-            <p className="text-xs text-muted-foreground mb-6">Subscribe to unlock the full Habesha Streams library in HD, Full HD, or 4K.</p>
+            <p className="text-xs text-muted-foreground mb-6">Subscribe for $5/month to unlock the full Habesha Streams library.</p>
             <Link
               to="/plans"
               className="block w-full py-3 gradient-gold text-background text-sm font-bold rounded-sm text-center hover:opacity-90 transition-all shadow-gold"
             >
-              View Plans — From $4.99/mo
+              Subscribe — $5/month
             </Link>
           </>
         )}
@@ -150,33 +142,11 @@ const SubscriptionTab = ({
         </button>
       </div>
 
-      {/* Plan comparison / upgrade */}
-      <div className="space-y-3">
-        {Object.entries(PLAN_DETAILS).map(([id, info]) => {
-          const isCurrent = stripeSubscription.plan === id;
-          const Icon = info.icon;
-          return (
-            <div
-              key={id}
-              className={`flex items-center gap-4 p-4 rounded-sm border transition-colors ${isCurrent ? "border-gold/50 bg-gold/5" : "border-gold/10 bg-surface hover:border-gold/25"}`}
-            >
-              <div className={`w-8 h-8 rounded-sm flex items-center justify-center flex-shrink-0 ${isCurrent ? "gradient-gold" : "bg-surface-overlay border border-gold/20"}`}>
-                <Icon className={`w-4 h-4 ${isCurrent ? "text-background" : "text-gold"}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-foreground">{info.label}</span>
-                  {isCurrent && <span className="text-[9px] px-1.5 py-0.5 bg-gold text-background rounded-sm font-bold">CURRENT</span>}
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{info.desc}</p>
-              </div>
-              <span className="text-xs font-bold text-gold flex-shrink-0">{info.price}</span>
-            </div>
-          );
-        })}
-        <p className="text-[10px] text-muted-foreground text-center pt-2">
-          Upgrade or downgrade anytime via{" "}
-          <button onClick={handlePortal} className="text-gold hover:underline">Stripe Billing Portal</button>
+      {/* Simple info */}
+      <div className="bg-surface border border-gold/10 rounded-sm p-4">
+        <p className="text-xs text-muted-foreground text-center">
+          Manage your billing anytime via{" "}
+          <button onClick={handlePortal} className="text-gold hover:underline">Billing Portal</button>
         </p>
       </div>
     </div>
@@ -185,7 +155,7 @@ const SubscriptionTab = ({
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState("account");
-  const { user, profile, stripeSubscription, checkSubscription, signOut } = useAuth();
+  const { user, profile, isSubscribed, subscriptionEnd, checkSubscription, signOut } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -201,9 +171,7 @@ const Profile = () => {
 
   const displayName = profile?.display_name ?? user?.email?.split("@")[0] ?? "User";
   const avatarLetter = displayName.charAt(0).toUpperCase();
-  const planLabel = stripeSubscription?.plan
-    ? `${stripeSubscription.plan.toUpperCase()} MEMBER`
-    : "FREE";
+  const planLabel = isSubscribed ? "SUBSCRIBER" : "FREE";
   const memberSince = user?.created_at
     ? new Date(user.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })
     : "";
@@ -328,7 +296,7 @@ const Profile = () => {
 
         {/* SUBSCRIPTION TAB */}
         {activeTab === "subscription" && (
-          <SubscriptionTab stripeSubscription={stripeSubscription} checkSubscription={checkSubscription} />
+          <SubscriptionTab isSubscribed={isSubscribed} subscriptionEnd={subscriptionEnd} checkSubscription={checkSubscription} />
         )}
         {activeTab === "subscription" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
