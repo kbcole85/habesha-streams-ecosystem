@@ -362,6 +362,44 @@ export type Database = {
         }
         Relationships: []
       }
+      video_subtitles: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean
+          label: string
+          language: string
+          subtitle_url: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          label: string
+          language: string
+          subtitle_url: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          language?: string
+          subtitle_url?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_subtitles_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       video_tags: {
         Row: {
           id: string
