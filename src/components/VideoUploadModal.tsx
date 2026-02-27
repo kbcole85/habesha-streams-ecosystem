@@ -86,19 +86,40 @@ const VideoUploadModal = ({ onClose, onSuccess }: Props) => {
     return true;
   };
 
+  // Sanitize any filename to ASCII-safe storage key
+  const sanitizeFileName = (name: string): string => {
+    const ext = name.lastIndexOf('.') > 0 ? name.slice(name.lastIndexOf('.')) : '';
+    const base = name.slice(0, name.length - ext.length);
+    const clean = base
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9\-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      || 'upload';
+    return clean + ext.toLowerCase().replace(/[^a-z0-9.]/g, '');
+  };
+
   // ── Submit ───────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!user || !videoFile) return;
+
+    // Validate file size (5 GB max)
+    if (videoFile.size > 5 * 1024 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum upload size is 5 GB.", variant: "destructive" });
+      return;
+    }
+
     setSubmitting(true);
     try {
       // 1. Upload thumbnail
       let thumbnailUrl: string | null = null;
       if (thumbnailFile) {
-        const thumbPath = `${user.id}/${Date.now()}_${thumbnailFile.name.replace(/\s/g, "_")}`;
+        const thumbPath = `${user.id}/${Date.now()}-${sanitizeFileName(thumbnailFile.name)}`;
         setThumbProgress(20);
         const { error: thumbErr } = await supabase.storage
           .from("thumbnails")
-          .upload(thumbPath, thumbnailFile, { upsert: true });
+          .upload(thumbPath, thumbnailFile, { upsert: true, contentType: thumbnailFile.type || "image/jpeg" });
         if (!thumbErr) {
           const { data: urlData } = supabase.storage.from("thumbnails").getPublicUrl(thumbPath);
           thumbnailUrl = urlData.publicUrl;
@@ -107,7 +128,7 @@ const VideoUploadModal = ({ onClose, onSuccess }: Props) => {
       }
 
       // 2. Upload video file
-      const videoPath = `${user.id}/${Date.now()}_${videoFile.name.replace(/\s/g, "_")}`;
+      const videoPath = `${user.id}/${Date.now()}-${sanitizeFileName(videoFile.name)}`;
       setVideoProgress(10);
 
       // Simulate chunked progress visually
@@ -117,7 +138,7 @@ const VideoUploadModal = ({ onClose, onSuccess }: Props) => {
 
       const { error: videoErr } = await supabase.storage
         .from("videos")
-        .upload(videoPath, videoFile, { upsert: true });
+        .upload(videoPath, videoFile, { upsert: false, cacheControl: "3600", contentType: videoFile.type || "video/mp4" });
 
       clearInterval(progressInterval);
       setVideoProgress(100);
