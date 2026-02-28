@@ -126,6 +126,8 @@ const Watch = () => {
   const [testCodeCheckDone, setTestCodeCheckDone] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [signedVideoUrl, setSignedVideoUrl] = useState<string | null>(null);
+  const [signedUrlLoading, setSignedUrlLoading] = useState(false);
 
   // Check test code access
   useEffect(() => {
@@ -167,6 +169,35 @@ const Watch = () => {
   const canPlay = accessGranted || (content.isPPV ? ppvPurchased : isSubscribed);
 
   console.log("[Watch] Access check:", { role, isAdmin, isSubscribed, hasTestCodeAccess, isPPV: content.isPPV, ppvPurchased, canPlay, userId: user?.id });
+
+  // Fetch signed URL when access is granted
+  useEffect(() => {
+    if (!canPlay || !content.id || !content.videoUrl || !user) {
+      setSignedVideoUrl(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchSignedUrl = async () => {
+      setSignedUrlLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("get-signed-video-url", {
+          body: { videoId: content.id },
+        });
+        if (error) throw error;
+        if (!cancelled && data?.signedUrl) {
+          setSignedVideoUrl(data.signedUrl);
+        }
+      } catch (err) {
+        console.error("[Watch] Failed to get signed URL:", err);
+        if (!cancelled) setSignedVideoUrl(null);
+      }
+      if (!cancelled) setSignedUrlLoading(false);
+    };
+    fetchSignedUrl();
+    // Refresh signed URL every 50 minutes (before 1hr expiry)
+    const refreshInterval = setInterval(fetchSignedUrl, 50 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(refreshInterval); };
+  }, [canPlay, content.id, content.videoUrl, user]);
 
   /* Fetch video + subtitles from DB */
   useEffect(() => {
@@ -267,10 +298,17 @@ const Watch = () => {
               </div>
             )}
 
-            {/* Real Video Player — only render when access is granted */}
-            {canPlay && content.videoUrl ? (
+            {/* Signed URL loading */}
+            {canPlay && signedUrlLoading && !signedVideoUrl && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                <Loader2 className="w-8 h-8 text-gold animate-spin" />
+              </div>
+            )}
+
+            {/* Real Video Player — only render when signed URL is ready */}
+            {canPlay && signedVideoUrl ? (
               <VideoPlayer
-                src={content.videoUrl}
+                src={signedVideoUrl}
                 poster={content.image}
                 title={content.title}
                 subtitles={subtitleTracks}
