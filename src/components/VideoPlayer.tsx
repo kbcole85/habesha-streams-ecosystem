@@ -120,8 +120,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       const video = videoRef.current;
       if (!video || !src) return;
 
-      // Reset error state
+      // Reset error state on new source
+      console.log("[VideoPlayer] Loading source:", src?.slice(0, 80));
       setHasError(false);
+      setIsBuffering(true);
 
       // Cleanup previous HLS instance
       if (hlsRef.current) {
@@ -196,10 +198,26 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           setBuffered(video.duration ? (end / video.duration) * 100 : 0);
         }
       };
-      const onWaiting = () => setIsBuffering(true);
-      const onCanPlay = () => setIsBuffering(false);
-      const onPlaying = () => setIsBuffering(false);
-      const onError = () => { setHasError(true); setIsBuffering(false); };
+      const onWaiting = () => { console.log("[VideoPlayer] Buffering…"); setIsBuffering(true); };
+      const onCanPlay = () => { console.log("[VideoPlayer] canplay"); setIsBuffering(false); };
+      const onPlaying = () => { console.log("[VideoPlayer] playing"); setIsBuffering(false); setHasError(false); };
+      const onError = () => {
+        const v = videoRef.current;
+        const mediaErr = v?.error;
+        console.error("[VideoPlayer] error event", {
+          code: mediaErr?.code,
+          message: mediaErr?.message,
+          networkState: v?.networkState,
+          readyState: v?.readyState,
+          src: v?.currentSrc?.slice(0, 80),
+        });
+        // Only treat as fatal if there's an actual MediaError and it's not a transient decode hiccup
+        if (mediaErr && (mediaErr.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED || mediaErr.code === MediaError.MEDIA_ERR_NETWORK)) {
+          setHasError(true);
+          setIsBuffering(false);
+        }
+        // MEDIA_ERR_DECODE (3) can be transient — don't show error overlay, just log
+      };
       const onEndedHandler = () => { setPlaying(false); onEnded?.(); };
 
       video.addEventListener("play", onPlay);
@@ -438,19 +456,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         }}
         onMouseMove={resetControlsTimer}
         onMouseLeave={() => { if (playing) setShowControls(false); }}
-        onClick={() => { if (!isNative) { closeAllMenus(); togglePlay(); resetControlsTimer(); } }}
+        onClick={(e) => { if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'VIDEO') { if (!isNative) { closeAllMenus(); togglePlay(); resetControlsTimer(); } } }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
         {/* ── Blurred background for portrait/square videos (cinematic fill) ── */}
-        {isPortrait && src && (
-          <video
-            src={src}
+        {isPortrait && poster && (
+          <img
+            src={poster}
             className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-40 pointer-events-none"
-            muted
-            playsInline
             aria-hidden="true"
-            tabIndex={-1}
+            alt=""
           />
         )}
 
@@ -494,10 +510,23 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
         {/* ── Error state ── */}
         {hasError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-background/90">
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-background/90"
+               onClick={(e) => e.stopPropagation()}>
             <p className="text-destructive text-sm font-semibold mb-2">Video failed to load</p>
+            <p className="text-muted-foreground text-xs mb-4 max-w-xs text-center">
+              {videoRef.current?.error?.message || "Check your connection and try again."}
+            </p>
             <button
-              onClick={(e) => { e.stopPropagation(); setHasError(false); if (videoRef.current && src) { videoRef.current.src = src; videoRef.current.load(); } }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setHasError(false);
+                setIsBuffering(true);
+                if (videoRef.current && src) {
+                  videoRef.current.src = src;
+                  videoRef.current.load();
+                  videoRef.current.play().catch(() => {});
+                }
+              }}
               className="px-4 py-2 bg-surface border border-gold/20 text-foreground text-xs rounded-sm hover:bg-surface-raised transition-colors"
             >
               Retry
@@ -518,10 +547,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
         {/* ── Big center play button ── */}
         {!playing && !isBuffering && !hasError && (
-          <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-            <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gold/90 backdrop-blur-sm flex items-center justify-center shadow-gold animate-pulse-gold">
+          <div className="absolute inset-0 flex items-center justify-center z-30">
+            <button
+              onClick={(e) => { e.stopPropagation(); togglePlay(); resetControlsTimer(); }}
+              className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gold/90 backdrop-blur-sm flex items-center justify-center shadow-gold animate-pulse-gold cursor-pointer hover:scale-105 transition-transform"
+            >
               <Play className="w-7 h-7 md:w-9 md:h-9 fill-background text-background ml-1" />
-            </div>
+            </button>
           </div>
         )}
 
