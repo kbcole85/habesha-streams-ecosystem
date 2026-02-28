@@ -180,11 +180,20 @@ const Watch = () => {
     const fetchSignedUrl = async () => {
       setSignedUrlLoading(true);
       try {
+        console.log("[Watch] Requesting signed URL for video:", content.id);
         const { data, error } = await supabase.functions.invoke("get-signed-video-url", {
           body: { videoId: content.id },
         });
-        if (error) throw error;
+        if (error) {
+          console.error("[Watch] Edge function error:", error);
+          throw error;
+        }
+        if (data?.error) {
+          console.error("[Watch] Server returned error:", data.error, data.detail);
+          throw new Error(data.error);
+        }
         if (!cancelled && data?.signedUrl) {
+          console.log("[Watch] Signed URL received successfully");
           setSignedVideoUrl(data.signedUrl);
         }
       } catch (err) {
