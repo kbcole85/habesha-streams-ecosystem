@@ -86,10 +86,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const [isBuffering, setIsBuffering] = useState(false);
     const [hasError, setHasError] = useState(false);
 
-    /* Aspect ratio detection */
-    const [aspectRatio, setAspectRatio] = useState<number | null>(null);
-    const isPortrait = aspectRatio !== null && aspectRatio < 1;
-    const isSquare = aspectRatio !== null && Math.abs(aspectRatio - 1) < 0.1;
+    /* Aspect ratio detection — used for cinematic blur on portrait */
+    const [isPortrait, setIsPortrait] = useState(false);
 
     /* Subtitle state */
     const [activeSubtitle, setActiveSubtitle] = useState<string>("Off");
@@ -107,6 +105,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     /* Watermark */
     const [watermarkPos, setWatermarkPos] = useState(0);
 
+    /* Mount debug */
+    useEffect(() => {
+      console.log("[VideoPlayer] Component mounted");
+      return () => console.log("[VideoPlayer] Component unmounted");
+    }, []);
+
     /* ── Imperative handle ── */
     useImperativeHandle(ref, () => ({
       play: () => videoRef.current?.play(),
@@ -115,33 +119,30 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       getCurrentTime: () => videoRef.current?.currentTime ?? 0,
     }));
 
-    /* ── HLS / Source setup ── */
+    /* ── HLS / Source setup — only depends on src ── */
     useEffect(() => {
       const video = videoRef.current;
       if (!video || !src) return;
 
-      // Reset error state on new source
       console.log("[VideoPlayer] Loading source:", src?.slice(0, 80));
       setHasError(false);
       setIsBuffering(true);
 
-      // Cleanup previous HLS instance
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
 
-      const isHLS = src.endsWith(".m3u8") || src.includes(".m3u8");
+      const isHLS = src.includes(".m3u8");
 
       if (isHLS && Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
           lowLatencyMode: false,
-          startLevel: -1, // auto
+          startLevel: -1,
           capLevelToPlayerSize: true,
         });
         hlsRef.current = hls;
-
         hls.loadSource(src);
         hls.attachMedia(video);
 
@@ -166,11 +167,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
         return () => { hls.destroy(); hlsRef.current = null; };
       } else if (isHLS && video.canPlayType("application/vnd.apple.mpegurl")) {
-        // Native HLS (Safari / iOS)
         video.src = src;
         if (autoPlay) video.play().catch(() => {});
       } else {
-        // Regular MP4
         video.src = src;
         if (autoPlay) video.play().catch(() => {});
       }
@@ -178,14 +177,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       return () => {
         if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
       };
-    }, [src, autoPlay]);
+    }, [src]); // Only re-run when src changes
 
     /* ── Video events ── */
     useEffect(() => {
       const video = videoRef.current;
       if (!video) return;
 
-      const onPlay = () => setPlaying(true);
+      const onPlay = () => { console.log("[VideoPlayer] play event"); setPlaying(true); };
       const onPause = () => setPlaying(false);
       const onTimeupdate = () => {
         setCurrentTime(video.currentTime);
@@ -202,23 +201,25 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       const onCanPlay = () => { console.log("[VideoPlayer] canplay"); setIsBuffering(false); };
       const onPlaying = () => { console.log("[VideoPlayer] playing"); setIsBuffering(false); setHasError(false); };
       const onError = () => {
-        const v = videoRef.current;
-        const mediaErr = v?.error;
+        const mediaErr = video.error;
         console.error("[VideoPlayer] error event", {
           code: mediaErr?.code,
           message: mediaErr?.message,
-          networkState: v?.networkState,
-          readyState: v?.readyState,
-          src: v?.currentSrc?.slice(0, 80),
+          networkState: video.networkState,
+          readyState: video.readyState,
         });
-        // Only treat as fatal if there's an actual MediaError and it's not a transient decode hiccup
         if (mediaErr && (mediaErr.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED || mediaErr.code === MediaError.MEDIA_ERR_NETWORK)) {
           setHasError(true);
           setIsBuffering(false);
         }
-        // MEDIA_ERR_DECODE (3) can be transient — don't show error overlay, just log
       };
       const onEndedHandler = () => { setPlaying(false); onEnded?.(); };
+      const onLoadedMetadata = () => {
+        console.log("[VideoPlayer] loadedmetadata", { w: video.videoWidth, h: video.videoHeight });
+        if (video.videoWidth && video.videoHeight) {
+          setIsPortrait(video.videoWidth / video.videoHeight < 1);
+        }
+      };
 
       video.addEventListener("play", onPlay);
       video.addEventListener("pause", onPause);
@@ -230,6 +231,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       video.addEventListener("playing", onPlaying);
       video.addEventListener("error", onError);
       video.addEventListener("ended", onEndedHandler);
+      video.addEventListener("loadedmetadata", onLoadedMetadata);
 
       return () => {
         video.removeEventListener("play", onPlay);
@@ -242,6 +244,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         video.removeEventListener("playing", onPlaying);
         video.removeEventListener("error", onError);
         video.removeEventListener("ended", onEndedHandler);
+        video.removeEventListener("loadedmetadata", onLoadedMetadata);
       };
     }, [onTimeUpdate, onEnded]);
 
@@ -329,12 +332,24 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       return () => document.removeEventListener("fullscreenchange", onFSChange);
     }, []);
 
-    /* ── Actions ── */
-    const togglePlay = () => {
+    /* ── Play/Pause toggle ── */
+    const handlePlay = useCallback(async () => {
       const video = videoRef.current;
-      if (!video) return;
-      playing ? video.pause() : video.play().catch(() => {});
-    };
+      if (!video) {
+        console.warn("[VideoPlayer] handlePlay: videoRef is null");
+        return;
+      }
+      try {
+        if (video.paused) {
+          console.log("[VideoPlayer] handlePlay: calling play()");
+          await video.play();
+        } else {
+          video.pause();
+        }
+      } catch (err) {
+        console.error("[VideoPlayer] handlePlay failed:", err);
+      }
+    }, []);
 
     const seekTo = (e: React.MouseEvent<HTMLDivElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -350,16 +365,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
     /* ── HLS quality switching ── */
     const setHlsQuality = (levelIndex: number) => {
-      if (hlsRef.current) {
-        hlsRef.current.currentLevel = levelIndex; // -1 = auto
-      }
+      if (hlsRef.current) hlsRef.current.currentLevel = levelIndex;
     };
 
     const qualityOptions = [
       { label: "Auto", index: -1 },
-      ...hlsLevels
-        .sort((a, b) => b.height - a.height)
-        .map(l => ({ label: `${l.height}p`, index: l.index })),
+      ...hlsLevels.sort((a, b) => b.height - a.height).map(l => ({ label: `${l.height}p`, index: l.index })),
     ];
 
     /* ── Subtitle toggle ── */
@@ -372,9 +383,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         video.textTracks[i].mode = video.textTracks[i].language === lang ? "showing" : "hidden";
       }
       if (lang === "Off") {
-        for (let i = 0; i < video.textTracks.length; i++) {
-          video.textTracks[i].mode = "hidden";
-        }
+        for (let i = 0; i < video.textTracks.length; i++) video.textTracks[i].mode = "hidden";
       }
     };
 
@@ -402,22 +411,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       if (Math.abs(dx) < 15 && Math.abs(dy) < 15 && dt < 250) {
         if (lastTapRef.current && now - lastTapRef.current.time < 350) {
           const isRightSide = lastTapRef.current.x > playerWidth / 2;
-          if (isRightSide) {
-            skip(10);
-            showSkipFlash("forward");
-            haptic(ImpactStyle.Medium);
-          } else {
-            skip(-10);
-            showSkipFlash("back");
-            haptic(ImpactStyle.Medium);
-          }
+          if (isRightSide) { skip(10); showSkipFlash("forward"); haptic(ImpactStyle.Medium); }
+          else { skip(-10); showSkipFlash("back"); haptic(ImpactStyle.Medium); }
           lastTapRef.current = null;
           resetControlsTimer();
           return;
         }
         lastTapRef.current = { x: t.clientX, time: now };
         closeAllMenus();
-        togglePlay();
+        handlePlay();
         haptic(ImpactStyle.Light);
         resetControlsTimer();
         return;
@@ -448,19 +450,21 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     return (
       <div
         ref={containerRef}
-        className={`relative overflow-hidden cursor-pointer select-none video-player ${className}`}
+        className={`relative overflow-hidden select-none bg-black ${className}`}
         style={{
-          background: "hsl(var(--background))",
-          ...(aspectRatio && !fullscreen ? { aspectRatio: String(Math.max(aspectRatio, 9/16)) } : {}),
-          ...(fullscreen ? { width: '100%', height: '100%' } : {}),
+          width: "100%",
+          maxHeight: fullscreen ? "100%" : "90vh",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          ...(fullscreen ? { width: "100%", height: "100%" } : {}),
         }}
         onMouseMove={resetControlsTimer}
         onMouseLeave={() => { if (playing) setShowControls(false); }}
-        onClick={(e) => { if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'VIDEO') { if (!isNative) { closeAllMenus(); togglePlay(); resetControlsTimer(); } } }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        {/* ── Blurred background for portrait/square videos (cinematic fill) ── */}
+        {/* ── Blurred background for portrait videos ── */}
         {isPortrait && poster && (
           <img
             src={poster}
@@ -470,25 +474,24 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           />
         )}
 
-        {/* ── Actual video element ── */}
+        {/* ── Video element — uses object-fit: contain, auto-sizes ── */}
         <video
           ref={videoRef}
-          className={`relative z-10 ${isPortrait ? 'h-full mx-auto' : 'w-full h-full'}`}
-          style={{ objectFit: 'contain', maxWidth: '100%', maxHeight: '100%' }}
+          style={{
+            display: "block",
+            maxWidth: "100%",
+            maxHeight: fullscreen ? "100%" : "90vh",
+            width: "auto",
+            height: "auto",
+            objectFit: "contain",
+          }}
           poster={poster}
           playsInline
           preload="metadata"
           crossOrigin="anonymous"
           controlsList="nodownload"
           onContextMenu={e => e.preventDefault()}
-          onLoadedMetadata={(e) => {
-            const v = e.currentTarget;
-            if (v.videoWidth && v.videoHeight) {
-              setAspectRatio(v.videoWidth / v.videoHeight);
-            }
-          }}
         >
-          {/* Subtitle tracks */}
           {subtitles.map(sub => (
             <track
               key={sub.language}
@@ -501,6 +504,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           ))}
         </video>
 
+        {/* ── Click-to-play/pause area — covers video, behind controls ── */}
+        <div
+          className="absolute inset-0 z-10 cursor-pointer"
+          onClick={() => { if (!isNative) { closeAllMenus(); handlePlay(); resetControlsTimer(); } }}
+        />
+
         {/* ── Buffering spinner ── */}
         {isBuffering && (
           <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
@@ -510,8 +519,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
 
         {/* ── Error state ── */}
         {hasError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-background/90"
-               onClick={(e) => e.stopPropagation()}>
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-40 bg-background/90">
             <p className="text-destructive text-sm font-semibold mb-2">Video failed to load</p>
             <p className="text-muted-foreground text-xs mb-4 max-w-xs text-center">
               {videoRef.current?.error?.message || "Check your connection and try again."}
@@ -541,16 +549,18 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           </div>
         )}
 
-        {/* Cinematic bars */}
-        <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/80 to-transparent pointer-events-none" />
-        <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/90 to-transparent pointer-events-none" />
-
-        {/* ── Big center play button — z-50 so it's ABOVE the controls overlay ── */}
+        {/* ── Big center play button ── */}
         {!playing && !isBuffering && !hasError && (
-          <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
             <button
-              onClick={(e) => { e.stopPropagation(); togglePlay(); resetControlsTimer(); }}
-              className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gold/90 backdrop-blur-sm flex items-center justify-center shadow-gold animate-pulse-gold cursor-pointer hover:scale-105 transition-transform pointer-events-auto"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log("[VideoPlayer] Center play button clicked");
+                handlePlay();
+                resetControlsTimer();
+              }}
+              className="pointer-events-auto w-16 h-16 md:w-20 md:h-20 rounded-full bg-gold/90 backdrop-blur-sm flex items-center justify-center shadow-gold animate-pulse-gold cursor-pointer hover:scale-105 transition-transform"
             >
               <Play className="w-7 h-7 md:w-9 md:h-9 fill-background text-background ml-1" />
             </button>
@@ -564,8 +574,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
               <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
                 {skipIndicator === "forward"
                   ? <FastForward className="w-7 h-7 text-white fill-white" />
-                  : <Rewind className="w-7 h-7 text-white fill-white" />
-                }
+                  : <Rewind className="w-7 h-7 text-white fill-white" />}
               </div>
               <span className="text-white text-xs font-bold drop-shadow">
                 {skipIndicator === "forward" ? "+10s" : "-10s"}
@@ -584,10 +593,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           </div>
         )}
 
-        {/* ── Controls Overlay ── */}
+        {/* ── Cinematic gradient bars ── */}
+        <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/80 to-transparent pointer-events-none z-[15]" />
+        <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/90 to-transparent pointer-events-none z-[15]" />
+
+        {/* ── Controls Overlay — z-30, above click area ── */}
         <div
           className={`absolute inset-0 flex flex-col justify-end z-30 transition-opacity duration-300 ${showControls || !playing ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-          onClick={e => e.stopPropagation()}
         >
           {/* Fullscreen title */}
           {fullscreen && title && (
@@ -597,7 +609,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             </div>
           )}
 
-          <div className="px-4 pb-4 space-y-2">
+          <div className="px-4 pb-4 space-y-2" onClick={e => e.stopPropagation()}>
             {/* ── Progress Bar ── */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-foreground/70 font-mono w-12 text-right flex-shrink-0">
@@ -622,7 +634,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
                 <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] bg-background/80 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">-10s</span>
               </button>
 
-              <button onClick={togglePlay} className="p-2 text-foreground hover:text-gold transition-colors">
+              <button onClick={handlePlay} className="p-2 text-foreground hover:text-gold transition-colors">
                 {playing ? <Pause className="w-5 h-5 md:w-6 md:h-6 fill-current" /> : <Play className="w-5 h-5 md:w-6 md:h-6 fill-current ml-0.5" />}
               </button>
 
@@ -677,8 +689,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
                         >
                           {activeSubtitle === sub.language
                             ? <Check className="w-3 h-3 text-gold flex-shrink-0" />
-                            : <div className="w-3 h-3 flex-shrink-0" />
-                          }
+                            : <div className="w-3 h-3 flex-shrink-0" />}
                           <span className={`text-xs ${activeSubtitle === sub.language ? "text-gold font-medium" : "text-foreground"}`}>{sub.label}</span>
                         </button>
                       ))}
@@ -687,7 +698,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
                 </div>
               )}
 
-              {/* Settings (Quality + Speed) */}
+              {/* Settings */}
               <div className="relative">
                 <button
                   onClick={e => { e.stopPropagation(); closeAllMenus(); setShowSettingsMenu(o => !o); }}
@@ -698,7 +709,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
                 </button>
                 {showSettingsMenu && (
                   <div className="absolute bottom-10 right-0 w-56 bg-surface-overlay/95 backdrop-blur-xl border border-gold/20 rounded-sm shadow-elevated overflow-hidden" onClick={e => e.stopPropagation()}>
-                    {/* Quality */}
                     <div className="px-3 py-2 border-b border-gold/10 flex items-center justify-between">
                       <p className="cinzel text-xs font-bold text-gold flex items-center gap-1.5"><Monitor className="w-3 h-3" /> Quality</p>
                       <span className="text-[10px] text-gold bg-gold/10 px-1.5 py-0.5 rounded-sm">{quality}</span>
@@ -712,7 +722,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
                         <span className={`text-xs flex-1 ${quality === q.label ? "text-gold font-medium" : "text-foreground"}`}>{q.label}</span>
                       </button>
                     ))}
-                    {/* Speed */}
                     <div className="px-3 py-2 border-t border-gold/10 flex items-center justify-between">
                       <p className="cinzel text-xs font-bold text-gold">Playback Speed</p>
                       <span className="text-[10px] text-gold bg-gold/10 px-1.5 py-0.5 rounded-sm">{speed}x</span>
