@@ -21,5 +21,8 @@ verify_jwt = false
 [functions.encoding-worker]
 verify_jwt = false
 
+[functions.get-signed-video-url]
+verify_jwt = false
+
 [functions.redeem-test-code]
 verify_jwt = false
