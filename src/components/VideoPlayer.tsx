@@ -86,6 +86,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const [isBuffering, setIsBuffering] = useState(false);
     const [hasError, setHasError] = useState(false);
 
+    /* Aspect ratio detection */
+    const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+    const isPortrait = aspectRatio !== null && aspectRatio < 1;
+    const isSquare = aspectRatio !== null && Math.abs(aspectRatio - 1) < 0.1;
+
     /* Subtitle state */
     const [activeSubtitle, setActiveSubtitle] = useState<string>("Off");
     const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
@@ -425,23 +430,47 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     return (
       <div
         ref={containerRef}
-        className={`relative bg-black overflow-hidden cursor-pointer select-none video-player ${className}`}
+        className={`relative overflow-hidden cursor-pointer select-none video-player ${className}`}
+        style={{
+          background: "hsl(var(--background))",
+          ...(aspectRatio && !fullscreen ? { aspectRatio: String(Math.max(aspectRatio, 9/16)) } : {}),
+          ...(fullscreen ? { width: '100%', height: '100%' } : {}),
+        }}
         onMouseMove={resetControlsTimer}
         onMouseLeave={() => { if (playing) setShowControls(false); }}
         onClick={() => { if (!isNative) { closeAllMenus(); togglePlay(); resetControlsTimer(); } }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
+        {/* ── Blurred background for portrait/square videos (cinematic fill) ── */}
+        {isPortrait && src && (
+          <video
+            src={src}
+            className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-40 pointer-events-none"
+            muted
+            playsInline
+            aria-hidden="true"
+            tabIndex={-1}
+          />
+        )}
+
         {/* ── Actual video element ── */}
         <video
           ref={videoRef}
-          className="w-full h-full object-contain"
+          className={`relative z-10 ${isPortrait ? 'h-full mx-auto' : 'w-full h-full'}`}
+          style={{ objectFit: 'contain', maxWidth: '100%', maxHeight: '100%' }}
           poster={poster}
           playsInline
           preload="metadata"
           crossOrigin="anonymous"
           controlsList="nodownload"
           onContextMenu={e => e.preventDefault()}
+          onLoadedMetadata={(e) => {
+            const v = e.currentTarget;
+            if (v.videoWidth && v.videoHeight) {
+              setAspectRatio(v.videoWidth / v.videoHeight);
+            }
+          }}
         >
           {/* Subtitle tracks */}
           {subtitles.map(sub => (

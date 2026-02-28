@@ -278,11 +278,11 @@ const Watch = () => {
       </div>
 
       {/* ─── Main layout ─── */}
-      <div className="flex flex-1 overflow-hidden h-[calc(100vh-49px)]">
+      <div className="flex flex-1 overflow-hidden">
         {/* ─── Player Column ─── */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-y-auto">
           {/* ─── Video Player Area ─── */}
-          <div className="relative flex-1 bg-black overflow-hidden">
+          <div className="relative w-full bg-black flex items-center justify-center" style={{ minHeight: '240px' }}>
             {/* Loading state */}
             {(authLoading || contentLoading) && (
               <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
@@ -323,7 +323,7 @@ const Watch = () => {
                 subtitles={subtitleTracks}
                 watermarkText={watermarkText}
                 onTimeUpdate={handleTimeUpdate}
-                className="w-full h-full"
+                className="w-full"
               />
             ) : (
               /* Poster fallback when no access or no video URL */
