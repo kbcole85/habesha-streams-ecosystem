@@ -545,12 +545,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/80 to-transparent pointer-events-none" />
         <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/90 to-transparent pointer-events-none" />
 
-        {/* ── Big center play button ── */}
+        {/* ── Big center play button — z-50 so it's ABOVE the controls overlay ── */}
         {!playing && !isBuffering && !hasError && (
-          <div className="absolute inset-0 flex items-center justify-center z-30">
+          <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
             <button
               onClick={(e) => { e.stopPropagation(); togglePlay(); resetControlsTimer(); }}
-              className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gold/90 backdrop-blur-sm flex items-center justify-center shadow-gold animate-pulse-gold cursor-pointer hover:scale-105 transition-transform"
+              className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gold/90 backdrop-blur-sm flex items-center justify-center shadow-gold animate-pulse-gold cursor-pointer hover:scale-105 transition-transform pointer-events-auto"
             >
               <Play className="w-7 h-7 md:w-9 md:h-9 fill-background text-background ml-1" />
             </button>
