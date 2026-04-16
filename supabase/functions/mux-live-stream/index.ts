@@ -33,13 +33,13 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
+  const { data: roles } = await supabase
+    .from("user_roles")
     .select("role")
-    .eq("id", user.id)
-    .single();
+    .eq("user_id", user.id);
 
-  const isAdminOrCreator = profile?.role === "admin" || profile?.role === "creator";
+  const roleSet = new Set((roles ?? []).map((r: { role: string }) => r.role));
+  const isAdminOrCreator = roleSet.has("admin") || roleSet.has("creator");
 
   const body = await req.json().catch(() => ({}));
   const action = body.action;
@@ -120,7 +120,7 @@ serve(async (req) => {
   if (action === "list") {
     const { data: streams } = await supabase
       .from("live_streams")
-      .select("id, title, status, mux_playback_id, playback_url, creator_id, created_at, profiles(full_name)")
+      .select("id, title, status, mux_playback_id, playback_url, creator_id, created_at, profiles(display_name)")
       .in("status", ["active", "idle"])
       .order("created_at", { ascending: false });
 
@@ -130,7 +130,7 @@ serve(async (req) => {
   if (action === "get") {
     const { data: stream } = await supabase
       .from("live_streams")
-      .select("*, profiles(full_name)")
+      .select("*, profiles(display_name)")
       .eq("id", body.stream_id)
       .single();
 
