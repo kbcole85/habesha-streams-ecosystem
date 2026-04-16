@@ -107,6 +107,56 @@ export type Database = {
         }
         Relationships: []
       }
+      live_streams: {
+        Row: {
+          created_at: string | null
+          creator_id: string
+          ended_at: string | null
+          id: string
+          mux_playback_id: string | null
+          mux_stream_id: string
+          mux_stream_key: string
+          playback_url: string | null
+          status: string
+          title: string
+          viewer_count: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          creator_id: string
+          ended_at?: string | null
+          id?: string
+          mux_playback_id?: string | null
+          mux_stream_id: string
+          mux_stream_key: string
+          playback_url?: string | null
+          status?: string
+          title: string
+          viewer_count?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          creator_id?: string
+          ended_at?: string | null
+          id?: string
+          mux_playback_id?: string | null
+          mux_stream_id?: string
+          mux_stream_key?: string
+          playback_url?: string | null
+          status?: string
+          title?: string
+          viewer_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_streams_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       login_attempts: {
         Row: {
           attempt_type: string
