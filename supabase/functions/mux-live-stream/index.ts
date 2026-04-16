@@ -120,7 +120,7 @@ serve(async (req) => {
   if (action === "list") {
     const { data: streams } = await supabase
       .from("live_streams")
-      .select("id, title, status, mux_playback_id, playback_url, creator_id, created_at, profiles(full_name)")
+      .select("id, title, status, mux_playback_id, playback_url, creator_id, created_at, profiles(display_name)")
       .in("status", ["active", "idle"])
       .order("created_at", { ascending: false });
 
