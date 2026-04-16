@@ -130,7 +130,7 @@ serve(async (req) => {
   if (action === "get") {
     const { data: stream } = await supabase
       .from("live_streams")
-      .select("*, profiles(full_name)")
+      .select("*, profiles(display_name)")
       .eq("id", body.stream_id)
       .single();
 
