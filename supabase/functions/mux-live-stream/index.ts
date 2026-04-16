@@ -33,13 +33,13 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
+  const { data: roles } = await supabase
+    .from("user_roles")
     .select("role")
-    .eq("id", user.id)
-    .single();
+    .eq("user_id", user.id);
 
-  const isAdminOrCreator = profile?.role === "admin" || profile?.role === "creator";
+  const roleSet = new Set((roles ?? []).map((r: { role: string }) => r.role));
+  const isAdminOrCreator = roleSet.has("admin") || roleSet.has("creator");
 
   const body = await req.json().catch(() => ({}));
   const action = body.action;
