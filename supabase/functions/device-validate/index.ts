@@ -19,7 +19,7 @@ serve(async (req) => {
   const adminClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    { auth: { persistSession: false } }
+    { auth: { persistSession: false } },
   );
 
   // User-scoped client for auth
@@ -32,7 +32,10 @@ serve(async (req) => {
   }
 
   const token = authHeader.replace("Bearer ", "");
-  const { data: { user }, error: userErr } = await adminClient.auth.getUser(token);
+  const {
+    data: { user },
+    error: userErr,
+  } = await adminClient.auth.getUser(token);
   if (userErr || !user) {
     return new Response(JSON.stringify({ error: "Not authenticated" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -50,10 +53,7 @@ serve(async (req) => {
     // ── REGISTER: first-time device registration ─────────────────────────────
     if (action === "register") {
       // Deactivate any old sessions first
-      await adminClient
-        .from("device_sessions")
-        .update({ is_active: false })
-        .eq("user_id", user.id);
+      await adminClient.from("device_sessions").update({ is_active: false }).eq("user_id", user.id);
 
       // Insert new session
       const { error: insertErr } = await adminClient.from("device_sessions").insert({
@@ -127,7 +127,7 @@ serve(async (req) => {
             status: "blocked",
             reason: "This account is linked to a different device. Contact support to reset your device.",
           }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 }
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 },
         );
       }
 
@@ -146,14 +146,16 @@ serve(async (req) => {
 
     // ── RESET: admin forces device re-registration for a user ─────────────────
     if (action === "reset") {
-      // Check caller is admin
+      // Check caller is admin (and not admin-disabled)
       const { data: roleData } = await adminClient
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
-        .single();
+        .eq("role", "admin")
+        .is("disabled_at", null)
+        .maybeSingle();
 
-      if (roleData?.role !== "admin") {
+      if (!roleData) {
         return new Response(JSON.stringify({ error: "Admin only" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 403,
