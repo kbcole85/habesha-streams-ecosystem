@@ -24,11 +24,9 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
 
-    const supabaseAuth = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
+    const supabaseAuth = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
     const token = authHeader.replace("Bearer ", "");
     const { data: claimsData, error: claimsErr } = await supabaseAuth.auth.getClaims(token);
@@ -38,11 +36,9 @@ serve(async (req) => {
     log("Authenticated", { userId });
 
     /* ── 2. Service-role client for DB + Storage ── */
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { persistSession: false } },
-    );
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+      auth: { persistSession: false },
+    });
 
     /* ── 3. Parse body ── */
     const { videoId } = await req.json();
@@ -62,15 +58,23 @@ serve(async (req) => {
     let accessGranted = false;
     let reason = "";
 
-    // 5a. Admin
+    // 5a. Admin (skip admin-disabled rows so a disabled admin loses the bypass)
     const { data: adminRole } = await supabase
-      .from("user_roles").select("role")
-      .eq("user_id", userId).eq("role", "admin").maybeSingle();
-    if (adminRole) { accessGranted = true; reason = "admin"; }
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .is("disabled_at", null)
+      .maybeSingle();
+    if (adminRole) {
+      accessGranted = true;
+      reason = "admin";
+    }
 
     // 5b. Creator viewing own video
     if (!accessGranted && video.creator_id === userId) {
-      accessGranted = true; reason = "creator_own";
+      accessGranted = true;
+      reason = "creator_own";
     }
 
     // 5c. Test code
@@ -78,27 +82,42 @@ serve(async (req) => {
       const { data: sub } = await supabase
         .from("subscriptions")
         .select("stripe_subscription_id, current_period_end, status")
-        .eq("user_id", userId).eq("status", "active").maybeSingle();
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .maybeSingle();
       if (
         sub?.stripe_subscription_id?.startsWith("test_code_") &&
         sub.current_period_end &&
         new Date(sub.current_period_end) > new Date()
-      ) { accessGranted = true; reason = "test_code"; }
+      ) {
+        accessGranted = true;
+        reason = "test_code";
+      }
     }
 
     // 5d. PPV purchase
     if (!accessGranted && video.monetization_type === "ppv") {
       const { data: payment } = await supabase
-        .from("payments").select("id")
-        .eq("user_id", userId).eq("type", "ppv").eq("status", "succeeded").eq("video_id", video.id).limit(1);
-      if (payment && payment.length > 0) { accessGranted = true; reason = "ppv_purchased"; }
+        .from("payments")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("type", "ppv")
+        .eq("status", "succeeded")
+        .eq("video_id", video.id)
+        .limit(1);
+      if (payment && payment.length > 0) {
+        accessGranted = true;
+        reason = "ppv_purchased";
+      }
     }
 
     // 5e. Subscription
     if (!accessGranted && video.monetization_type === "subscription") {
-      const { data: profile } = await supabase
-        .from("profiles").select("is_subscribed").eq("id", userId).single();
-      if (profile?.is_subscribed) { accessGranted = true; reason = "subscribed"; }
+      const { data: profile } = await supabase.from("profiles").select("is_subscribed").eq("id", userId).single();
+      if (profile?.is_subscribed) {
+        accessGranted = true;
+        reason = "subscribed";
+      }
     }
 
     if (!accessGranted) {
@@ -113,7 +132,10 @@ serve(async (req) => {
     // Strip legacy full-URL prefixes if present
     const prefixes = ["/storage/v1/object/public/videos/", "/storage/v1/object/sign/videos/"];
     for (const p of prefixes) {
-      if (storagePath.includes(p)) { storagePath = storagePath.split(p).pop()!; break; }
+      if (storagePath.includes(p)) {
+        storagePath = storagePath.split(p).pop()!;
+        break;
+      }
     }
     if (storagePath.startsWith("http")) {
       const match = storagePath.match(/\/videos\/(.+)$/);
