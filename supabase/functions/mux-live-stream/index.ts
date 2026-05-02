@@ -13,41 +13,51 @@ function muxHeaders() {
   const secret = Deno.env.get("MUX_TOKEN_SECRET") ?? "";
   const creds = btoa(`${id}:${secret}`);
   return {
-    "Authorization": `Basic ${creds}`,
+    Authorization: `Basic ${creds}`,
     "Content-Type": "application/json",
   };
+}
+
+function respond(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-  );
+  const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser(
-    req.headers.get("Authorization")?.replace("Bearer ", "") ?? ""
-  );
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
-  }
-
-  const { data: roles } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id);
-
-  const roleSet = new Set((roles ?? []).map((r: { role: string }) => r.role));
-  const isAdminOrCreator = roleSet.has("admin") || roleSet.has("creator");
+  const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser(authHeader);
+  if (authError || !user) return respond({ error: "Unauthorized" }, 401);
 
   const body = await req.json().catch(() => ({}));
-  const action = body.action;
+  const action = body.action as string;
 
+  // Helper: check creator/admin role. Filters out admin-disabled rows so a
+  // disabled creator cannot create new live streams.
+  const checkCreator = async () => {
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .in("role", ["admin", "creator"])
+      .is("disabled_at", null)
+      .maybeSingle();
+    return !!data;
+  };
+
+  // ── CREATE ─────────────────────────────────────────────────────────────────
   if (action === "create") {
-    if (!isAdminOrCreator) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
-    }
+    if (!(await checkCreator())) return respond({ error: "Forbidden" }, 403);
+
+    const title = (body.title as string | undefined)?.trim() || "Live Stream";
 
     const muxRes = await fetch(`${MUX_BASE}/video/v1/live-streams`, {
       method: "POST",
@@ -59,39 +69,48 @@ serve(async (req) => {
       }),
     });
 
-    const muxData = await muxRes.json();
     if (!muxRes.ok) {
-      return new Response(JSON.stringify({ error: muxData }), { status: 500, headers: corsHeaders });
+      const muxErr = await muxRes.json().catch(() => ({}));
+      console.error("Mux create error:", muxErr);
+      return respond({ error: "Failed to create Mux stream", detail: muxErr }, 500);
     }
 
-    const stream = muxData.data;
-    const playbackId = stream.playback_ids?.[0]?.id;
+    const muxData = await muxRes.json();
+    const muxStream = muxData.data;
+
+    if (!muxStream?.id || !muxStream?.stream_key) {
+      return respond({ error: "Mux returned invalid stream data" }, 500);
+    }
+
+    const playbackId = muxStream.playback_ids?.[0]?.id ?? null;
 
     const { data: inserted, error: dbError } = await supabase
       .from("live_streams")
       .insert({
-        title: body.title ?? "Live Stream",
+        title,
         creator_id: user.id,
-        mux_stream_id: stream.id,
-        mux_stream_key: stream.stream_key,
+        mux_stream_id: muxStream.id,
+        mux_stream_key: muxStream.stream_key,
         mux_playback_id: playbackId,
-        playback_url: `https://stream.mux.com/${playbackId}.m3u8`,
+        playback_url: playbackId ? `https://stream.mux.com/${playbackId}.m3u8` : null,
         status: "idle",
       })
-      .select()
+      .select("id, title, status, mux_stream_key, mux_playback_id, playback_url, creator_id, created_at")
       .single();
 
     if (dbError) {
-      return new Response(JSON.stringify({ error: dbError.message }), { status: 500, headers: corsHeaders });
+      console.error("DB insert error:", dbError);
+      return respond({ error: dbError.message }, 500);
     }
 
-    return new Response(JSON.stringify({ stream: inserted }), { headers: corsHeaders });
+    return respond({ stream: inserted });
   }
 
+  // ── END ────────────────────────────────────────────────────────────────────
   if (action === "end") {
-    if (!isAdminOrCreator) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
-    }
+    if (!(await checkCreator())) return respond({ error: "Forbidden" }, 403);
+
+    if (!body.stream_id) return respond({ error: "stream_id required" }, 400);
 
     const { data: stream } = await supabase
       .from("live_streams")
@@ -100,10 +119,9 @@ serve(async (req) => {
       .eq("creator_id", user.id)
       .single();
 
-    if (!stream) {
-      return new Response(JSON.stringify({ error: "Stream not found" }), { status: 404, headers: corsHeaders });
-    }
+    if (!stream) return respond({ error: "Stream not found" }, 404);
 
+    // Signal Mux to complete the stream
     await fetch(`${MUX_BASE}/video/v1/live-streams/${stream.mux_stream_id}/complete`, {
       method: "PUT",
       headers: muxHeaders(),
@@ -114,43 +132,54 @@ serve(async (req) => {
       .update({ status: "ended", ended_at: new Date().toISOString() })
       .eq("id", body.stream_id);
 
-    return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+    return respond({ success: true });
   }
 
+  // ── LIST ───────────────────────────────────────────────────────────────────
   if (action === "list") {
-    const { data: streams } = await supabase
+    const { data: streams, error: listErr } = await supabase
       .from("live_streams")
       .select("id, title, status, mux_playback_id, playback_url, creator_id, created_at, profiles(display_name)")
       .in("status", ["active", "idle"])
       .order("created_at", { ascending: false });
 
-    return new Response(JSON.stringify({ streams }), { headers: corsHeaders });
+    if (listErr) return respond({ error: listErr.message }, 500);
+    return respond({ streams: streams ?? [] });
   }
 
+  // ── GET ────────────────────────────────────────────────────────────────────
   if (action === "get") {
-    const { data: stream } = await supabase
+    if (!body.stream_id) return respond({ error: "stream_id required" }, 400);
+
+    const { data: stream, error: getErr } = await supabase
       .from("live_streams")
-      .select("*, profiles(display_name)")
+      .select(
+        "id, title, status, mux_stream_id, mux_playback_id, playback_url, creator_id, created_at, profiles(display_name)",
+      )
       .eq("id", body.stream_id)
       .single();
 
-    if (!stream) {
-      return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: corsHeaders });
+    if (getErr || !stream) return respond({ error: "Not found" }, 404);
+
+    // Sync real status from Mux
+    try {
+      const muxRes = await fetch(`${MUX_BASE}/video/v1/live-streams/${stream.mux_stream_id}`, {
+        headers: muxHeaders(),
+      });
+      if (muxRes.ok) {
+        const muxData = await muxRes.json();
+        const muxStatus = muxData.data?.status as string | undefined;
+        if (muxStatus && muxStatus !== stream.status) {
+          await supabase.from("live_streams").update({ status: muxStatus }).eq("id", body.stream_id);
+          stream.status = muxStatus;
+        }
+      }
+    } catch (e) {
+      console.warn("Mux status sync failed:", e);
     }
 
-    const muxRes = await fetch(`${MUX_BASE}/video/v1/live-streams/${stream.mux_stream_id}`, {
-      headers: muxHeaders(),
-    });
-    const muxData = await muxRes.json();
-    const muxStatus = muxData.data?.status;
-
-    if (muxStatus && muxStatus !== stream.status) {
-      await supabase.from("live_streams").update({ status: muxStatus }).eq("id", body.stream_id);
-      stream.status = muxStatus;
-    }
-
-    return new Response(JSON.stringify({ stream }), { headers: corsHeaders });
+    return respond({ stream });
   }
 
-  return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: corsHeaders });
+  return respond({ error: "Unknown action" }, 400);
 });
