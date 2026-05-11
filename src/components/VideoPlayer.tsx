@@ -139,8 +139,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
         const hls = new Hls({
           enableWorker: true,
           lowLatencyMode: false,
-          startLevel: -1,
+          startLevel: 0,          // start at lowest quality, ramp up fast
           capLevelToPlayerSize: true,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
+          abrEwmaDefaultEstimate: 500000, // assume 500kbps to start quickly
+          abrBandWidthFactor: 0.9,
+          abrBandWidthUpFactor: 0.7,
         });
         hlsRef.current = hls;
         hls.loadSource(src);

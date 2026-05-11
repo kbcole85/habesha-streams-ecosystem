@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import PPVCheckoutButton from "@/components/PPVCheckoutButton";
 import VideoPlayer, { type SubtitleTrack } from "@/components/VideoPlayer";
+import { useScreenProtection } from "@/hooks/useScreenProtection";
 
 /* ──────────────── Paywall Overlay ──────────────── */
 
@@ -109,6 +110,17 @@ function dbToWatchContent(v: any): WatchContent {
 const Watch = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { enableProtection, disableProtection, startDetection, stopDetection } = useScreenProtection();
+
+  // Enable screen protection when viewing content, disable on leave
+  useEffect(() => {
+    enableProtection();
+    startDetection();
+    return () => {
+      disableProtection();
+      stopDetection();
+    };
+  }, [enableProtection, disableProtection, startDetection, stopDetection]);
 
   const [content, setContent] = useState<WatchContent>({
     id: "", title: "Loading...", subtitle: "", year: 2024, rating: "-",
@@ -322,6 +334,7 @@ const Watch = () => {
                 title={content.title}
                 subtitles={subtitleTracks}
                 watermarkText={watermarkText}
+                autoPlay={true}
                 onTimeUpdate={handleTimeUpdate}
                 className="w-full"
               />

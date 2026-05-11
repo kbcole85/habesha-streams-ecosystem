@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import VideoUploadModal from "@/components/VideoUploadModal";
 import { useCreatorVideos } from "@/hooks/useCreatorVideos";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutDashboard, Upload, BarChart2, DollarSign, Film,
-  ChevronRight, TrendingUp, Eye, Clock, Play, Plus,
-  CheckCircle, AlertCircle, ArrowUp, Trash2, RefreshCw,
-  Loader2, XCircle, AlertTriangle, Zap,
+  Eye, Clock, Play, Plus,
+  CheckCircle, TrendingUp, Trash2, RefreshCw,
+  Loader2, XCircle, AlertTriangle, Zap, Radio,
 } from "lucide-react";
 import thumb1 from "@/assets/thumb-1.jpg";
 import thumb3 from "@/assets/thumb-3.jpg";
@@ -26,6 +28,7 @@ const sidebarItems = [
   { icon: LayoutDashboard, label: "Dashboard", id: "dashboard" },
   { icon: Upload, label: "Upload Content", id: "upload" },
   { icon: Film, label: "My Content", id: "content" },
+  { icon: Radio, label: "Go Live", id: "live" },
   { icon: BarChart2, label: "Analytics", id: "analytics" },
   { icon: DollarSign, label: "Earnings", id: "earnings" },
 ];
@@ -200,12 +203,51 @@ function MyContentTab() {
   );
 }
 
+// ── Real Stats Hook ───────────────────────────────────────────────────────────
+function useCreatorStats(userId: string | undefined) {
+  const [stats, setStats] = useState({ views: 0, publishedCount: 0, watchMinutes: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) return;
+    const load = async () => {
+      const videosRes = await supabase.from("videos").select("id, status").eq("creator_id", userId);
+      const allVideos = videosRes.data ?? [];
+      const approvedVideos = allVideos.filter(v => v.status === "approved");
+      const publishedCount = approvedVideos.length;
+      const videoIds = approvedVideos.map(v => v.id);
+
+      let views = 0;
+      let watchMinutes = 0;
+
+      if (videoIds.length > 0) {
+        const [eventsRes, historyRes] = await Promise.all([
+          supabase.from("analytics_events").select("id", { count: "exact", head: true })
+            .in("video_id", videoIds).eq("event_type", "play"),
+          supabase.from("watch_history").select("progress_seconds").in("content_id", videoIds),
+        ]);
+        views = eventsRes.count ?? 0;
+        watchMinutes = Math.round(
+          (historyRes.data ?? []).reduce((sum, h) => sum + (h.progress_seconds ?? 0), 0) / 60
+        );
+      }
+
+      setStats({ views, publishedCount, watchMinutes });
+      setLoading(false);
+    };
+    load();
+  }, [userId]);
+
+  return { stats, loading };
+}
+
 // ── Main Creator Page ─────────────────────────────────────────────────────────
 const Creator = () => {
   const { user } = useAuth();
+  const { stats, loading: statsLoading } = useCreatorStats(user?.id);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [showUpload, setShowUpload] = useState(false);
-
+  const navigate = useNavigate();
   const displayName = user?.user_metadata?.display_name ?? user?.email?.split("@")[0] ?? "Creator";
 
   return (
@@ -235,7 +277,7 @@ const Creator = () => {
             {sidebarItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => item.id === "upload" ? setShowUpload(true) : setActiveTab(item.id)}
+                onClick={() => item.id === "upload" ? setShowUpload(true) : item.id === "live" ? navigate("/go-live") : setActiveTab(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-left transition-all duration-200 ${
                   activeTab === item.id
                     ? "bg-gold/10 border border-gold/30 text-gold"
@@ -263,13 +305,22 @@ const Creator = () => {
               <h1 className="cinzel text-2xl font-bold text-foreground">Creator Dashboard</h1>
               <p className="text-xs text-muted-foreground">Welcome back, {displayName}</p>
             </div>
-            <button
-              onClick={() => setShowUpload(true)}
-              className="flex items-center gap-2 px-4 py-2 gradient-gold text-background text-sm font-bold rounded-sm hover:opacity-90 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Upload Content
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate("/go-live")}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-sm transition-all"
+              >
+                <Radio className="w-4 h-4" />
+                Go Live
+              </button>
+              <button
+                onClick={() => setShowUpload(true)}
+                className="flex items-center gap-2 px-4 py-2 gradient-gold text-background text-sm font-bold rounded-sm hover:opacity-90 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Upload
+              </button>
+            </div>
           </div>
 
           {/* My Content Tab */}
@@ -279,19 +330,15 @@ const Creator = () => {
           {activeTab === "dashboard" && (
             <>
               {/* Stats */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                 {[
-                  { label: "Total Views", value: "21,840", change: "+18.4%", icon: Eye },
-                  { label: "This Month Earned", value: "$6,134", change: "+16.2%", icon: DollarSign },
-                  { label: "Watch Hours", value: "3,840h", change: "+22%", icon: Clock },
-                  { label: "Published Content", value: "14", change: "+2 this month", icon: Film },
+                  { label: "Total Views", value: statsLoading ? "—" : stats.views.toLocaleString(), icon: Eye },
+                  { label: "Watch Minutes", value: statsLoading ? "—" : stats.watchMinutes.toLocaleString() + "m", icon: Clock },
+                  { label: "Published Content", value: statsLoading ? "—" : stats.publishedCount.toString(), icon: Film },
                 ].map((stat, i) => (
                   <div key={i} className="bg-surface border border-gold/10 rounded-sm p-4">
                     <div className="flex items-center justify-between mb-2">
                       <stat.icon className="w-4 h-4 text-gold" />
-                      <span className="text-[10px] text-emerald-bright font-bold flex items-center gap-0.5">
-                        <ArrowUp className="w-2.5 h-2.5" />{stat.change}
-                      </span>
                     </div>
                     <p className="cinzel text-xl font-bold text-foreground">{stat.value}</p>
                     <p className="text-[10px] text-muted-foreground">{stat.label}</p>

@@ -6,6 +6,7 @@ import {
   TrendingUp, Upload, Eye, AlertTriangle, CheckCircle, Clock,
   ChevronRight, BarChart2, Globe, Activity, Bell, Search,
   Smartphone, RotateCcw, ShieldAlert, Loader2, KeyRound, Copy,
+  Star, Ban, Check,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -16,6 +17,7 @@ import AdminContentApproval from "@/components/AdminContentApproval";
 const sidebarItems = [
   { icon: LayoutDashboard, label: "Dashboard", id: "dashboard" },
   { icon: Film, label: "Content", id: "content" },
+  { icon: Star, label: "Creators", id: "creators" },
   { icon: Users, label: "Users", id: "users" },
   { icon: DollarSign, label: "Finance", id: "finance" },
   { icon: TrendingUp, label: "Analytics", id: "analytics" },
@@ -260,6 +262,213 @@ const AdminDashboardOverview = () => {
 };
 
 
+// ── Creators Management Panel ──────────────────────────────────────────────
+type CreatorRow = {
+  id: string;
+  user_id: string;
+  assigned_at: string;
+  disabled_at: string | null;
+  email: string | null;
+  display_name: string | null;
+  video_count: number;
+};
+
+const CreatorsPanel = () => {
+  const [rows, setRows] = useState<CreatorRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "active" | "disabled">("all");
+
+  const load = async () => {
+    setLoading(true);
+    const { data: roleRows, error } = await supabase
+      .from("user_roles")
+      .select("id, user_id, assigned_at, disabled_at")
+      .eq("role", "creator")
+      .order("assigned_at", { ascending: false });
+
+    if (error) {
+      toast({ title: "Failed to load creators", description: error.message, variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+
+    const userIds = (roleRows ?? []).map((r) => r.user_id);
+    let profilesMap: Record<string, { email: string | null; display_name: string | null }> = {};
+    let videoCountMap: Record<string, number> = {};
+
+    if (userIds.length > 0) {
+      const [profilesRes, videosRes] = await Promise.all([
+        supabase.from("profiles").select("id, email, display_name").in("id", userIds),
+        supabase.from("videos").select("creator_id").in("creator_id", userIds),
+      ]);
+
+      (profilesRes.data ?? []).forEach((p) => {
+        profilesMap[p.id] = { email: p.email, display_name: p.display_name };
+      });
+      (videosRes.data ?? []).forEach((v) => {
+        if (v.creator_id) videoCountMap[v.creator_id] = (videoCountMap[v.creator_id] ?? 0) + 1;
+      });
+    }
+
+    setRows(
+      (roleRows ?? []).map((r) => ({
+        id: r.id,
+        user_id: r.user_id,
+        assigned_at: r.assigned_at,
+        disabled_at: r.disabled_at,
+        email: profilesMap[r.user_id]?.email ?? null,
+        display_name: profilesMap[r.user_id]?.display_name ?? null,
+        video_count: videoCountMap[r.user_id] ?? 0,
+      }))
+    );
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const toggleDisabled = async (row: CreatorRow) => {
+    setBusyId(row.id);
+    const wantDisable = row.disabled_at === null;
+    const { data: userRes } = await supabase.auth.getUser();
+    const adminId = userRes.user?.id ?? null;
+    const { error } = await supabase
+      .from("user_roles")
+      .update({
+        disabled_at: wantDisable ? new Date().toISOString() : null,
+        disabled_by: wantDisable ? adminId : null,
+      })
+      .eq("id", row.id);
+    if (error) {
+      toast({ title: "Action failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({
+        title: wantDisable ? "Creator disabled" : "Creator re-enabled",
+        description: row.email ?? row.user_id,
+      });
+      await load();
+    }
+    setBusyId(null);
+  };
+
+  const visible = rows.filter((r) =>
+    filter === "all" ? true : filter === "active" ? r.disabled_at === null : r.disabled_at !== null
+  );
+
+  const activeCount = rows.filter((r) => !r.disabled_at).length;
+  const disabledCount = rows.filter((r) => r.disabled_at).length;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label: "Total Creators", value: rows.length, color: "text-foreground" },
+          { label: "Active", value: activeCount, color: "text-emerald-bright" },
+          { label: "Disabled", value: disabledCount, color: "text-destructive" },
+        ].map((s, i) => (
+          <div key={i} className="bg-surface border border-gold/10 rounded-sm p-4 text-center">
+            <p className={`cinzel text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-surface border border-gold/10 rounded-sm">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gold/10">
+          <div className="flex items-center gap-2">
+            <h3 className="cinzel text-sm font-bold text-foreground">Creators</h3>
+            <div className="flex bg-surface-raised rounded-sm border border-gold/10 p-0.5">
+              {(["all", "active", "disabled"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`px-2.5 py-1 text-[10px] capitalize rounded-sm transition-all ${
+                    filter === f ? "bg-gold/10 text-gold" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={load}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gold/20 text-gold rounded-sm hover:bg-gold hover:text-background transition-all"
+          >
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+            Refresh
+          </button>
+        </div>
+
+        {visible.length === 0 ? (
+          <div className="px-5 py-10 text-center text-xs text-muted-foreground">
+            {loading ? "Loading…" : "No creators in this view."}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gold/5">
+                  <th className="px-5 py-3 text-left text-muted-foreground font-medium">Creator</th>
+                  <th className="px-3 py-3 text-left text-muted-foreground font-medium">Status</th>
+                  <th className="px-3 py-3 text-left text-muted-foreground font-medium">Videos</th>
+                  <th className="px-3 py-3 text-left text-muted-foreground font-medium">Joined</th>
+                  <th className="px-5 py-3 text-right text-muted-foreground font-medium">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((r) => {
+                  const disabled = r.disabled_at !== null;
+                  return (
+                    <tr key={r.id} className="border-b border-gold/5 hover:bg-surface-raised transition-colors">
+                      <td className="px-5 py-3">
+                        <p className="font-medium text-foreground">{r.display_name ?? "—"}</p>
+                        <p className="text-[10px] text-muted-foreground">{r.email ?? r.user_id.slice(0, 8) + "…"}</p>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold ${
+                          disabled ? "bg-destructive/20 text-destructive" : "bg-emerald/20 text-emerald-bright"
+                        }`}>
+                          {disabled ? "disabled" : "active"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground">{r.video_count}</td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {new Date(r.assigned_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <button
+                          onClick={() => toggleDisabled(r)}
+                          disabled={busyId === r.id}
+                          className={`px-2.5 py-1 text-[10px] rounded-sm transition-all inline-flex items-center gap-1 ${
+                            disabled
+                              ? "border border-emerald/30 text-emerald-bright hover:bg-emerald/10"
+                              : "border border-destructive/30 text-destructive hover:bg-destructive/10"
+                          } disabled:opacity-50`}
+                        >
+                          {busyId === r.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : disabled ? (
+                            <Check className="w-3 h-3" />
+                          ) : (
+                            <Ban className="w-3 h-3" />
+                          )}
+                          {disabled ? "Re-enable" : "Disable"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ── Device Management Panel ────────────────────────────────────────────────
 const DeviceManagementPanel = () => {
   const [targetUserId, setTargetUserId] = useState("");
@@ -475,7 +684,7 @@ const Admin = () => {
           </div>
 
           {/* Stats + tables — only on dashboard-like tabs */}
-          {!["analytics", "devices", "security", "settings", "testcodes", "content"].includes(activeTab) && (
+          {!["analytics", "devices", "security", "settings", "testcodes", "content", "creators"].includes(activeTab) && (
             <AdminDashboardOverview />
           )}
 
@@ -484,6 +693,9 @@ const Admin = () => {
 
           {/* Content approval tab */}
           {activeTab === "content" && <AdminContentApproval />}
+
+          {/* Creators tab */}
+          {activeTab === "creators" && <CreatorsPanel />}
 
           {/* Devices tab */}
           {activeTab === "devices" && <DeviceManagementPanel />}

@@ -12,6 +12,18 @@ dist
 dist-ssr
 *.local
 
+# Android release signing — never commit
+*.jks
+*.keystore
+keystore.properties
+
+# Claude Code local cache — never commit
+.claude/
+
+# Ad-hoc screenshots dropped at repo root
+/screen.png
+/screenshot*.png
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

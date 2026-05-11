@@ -27,6 +27,7 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   checkSubscription: () => Promise<void>;
+  becomeCreator: () => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -50,7 +51,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const [profileRes, rolesRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", userId).single(),
-        supabase.from("user_roles").select("role").eq("user_id", userId),
+        supabase.from("user_roles").select("role").eq("user_id", userId).is("disabled_at", null),
       ]);
       if (profileRes.data) {
         setProfile({
@@ -193,6 +194,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setDeviceBlockReason(null);
   };
 
+  const becomeCreator = async () => {
+    if (!user) return { error: new Error("Not signed in") };
+    const { error } = await supabase
+      .from("user_roles")
+      .insert({ user_id: user.id, role: "creator" });
+    if (error) {
+      // Unique-violation (23505): a creator row already exists. The button only
+      // renders when the active role is not creator, so reaching here means the
+      // existing row was admin-disabled — only an admin can re-enable it.
+      if ((error as { code?: string }).code === "23505") {
+        return { error: new Error("Your creator access has been disabled. Please contact support to have it re-enabled.") };
+      }
+      return { error: new Error(error.message) };
+    }
+    await fetchProfileData(user.id);
+    return { error: null };
+  };
+
   const isSubscribed = profile?.is_subscribed ?? false;
   const subscriptionEnd = profile?.subscription_period_end ?? null;
 
@@ -201,7 +220,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       user, session, profile, role, loading,
       isSubscribed, subscriptionEnd,
       deviceBlocked, deviceBlockReason,
-      signUp, signIn, signOut, refreshProfile, checkSubscription
+      signUp, signIn, signOut, refreshProfile, checkSubscription, becomeCreator
     }}>
       {children}
     </AuthContext.Provider>

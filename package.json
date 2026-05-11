@@ -10,7 +10,12 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "cap:sync": "capacitor sync",
+    "cap:open:android": "capacitor open android",
+    "cap:run:android": "capacitor run android",
+    "mobile:build": "vite build && capacitor sync android",
+    "mobile:open": "vite build && capacitor sync android && capacitor open android"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
@@ -74,6 +79,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.0",
     "@eslint/js": "^9.32.0",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.0",

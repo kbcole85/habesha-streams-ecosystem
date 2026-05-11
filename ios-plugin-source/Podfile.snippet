@@ -1,0 +1,17 @@
+# Add this line inside the `target 'App' do` block in ios/App/Podfile,
+# alongside the existing pod entries Capacitor generates.
+
+pod 'HaishinKit', '~> 1.9.5'
+
+# After editing, run from inside ios/App/:
+#   pod install --repo-update
+#
+# HaishinKit 1.9.5 is the latest stable in the 1.x line. We target 1.x rather
+# than 2.x because:
+#   - 2.x has substantially different APIs (async/await, MediaMixer)
+#   - LiveStreamPlugin.swift is written against the 1.x API
+#   - 1.9.5 supports iOS 13.0+ which matches Capacitor 8's minimum
+#
+# If you ever need to upgrade to HaishinKit 2.x, the plugin's attachCamera /
+# attachAudio / RTMPStream API calls will need to be rewritten for the new
+# MediaMixer-based pipeline.

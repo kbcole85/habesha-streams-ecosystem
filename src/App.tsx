@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import MobileShell from "@/components/MobileShell";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import Index from "./pages/Index";
 import Browse from "./pages/Browse";
 import Watch from "./pages/Watch";
@@ -20,6 +21,8 @@ import Terms from "./pages/Terms";
 import RefundPolicy from "./pages/RefundPolicy";
 import CookiePolicy from "./pages/CookiePolicy";
 import SubscriptionSuccess from "./pages/SubscriptionSuccess";
+import Live from "./pages/Live";
+import GoLive from "./pages/GoLive";
 import NotFound from "./pages/NotFound";
 import { Play, ShieldAlert, LogOut } from "lucide-react";
 
@@ -75,6 +78,8 @@ const AppRoutes = () => {
       <Route path="/auth" element={<Auth />} />
       <Route path="/browse" element={<Browse />} />
       <Route path="/watch/:id" element={<Watch />} />
+      <Route path="/live/:id" element={<Live />} />
+      <Route path="/go-live" element={<ProtectedRoute requiredRole="creator"><GoLive /></ProtectedRoute>} />
       <Route path="/plans" element={<Plans />} />
       <Route path="/subscription-success" element={<SubscriptionSuccess />} />
       <Route
@@ -128,6 +133,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <AppRoutes />
+          <MobileBottomNav />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

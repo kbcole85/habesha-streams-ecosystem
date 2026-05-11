@@ -1,0 +1,35 @@
+<!--
+Add these keys inside the top-level <dict> of ios/App/App/Info.plist
+(alongside the existing entries Capacitor generates).
+
+iOS will REJECT the app at install time if it accesses camera/microphone
+without these usage descriptions present. App Store review will also reject
+the binary if descriptions are missing or vague.
+-->
+
+<key>NSCameraUsageDescription</key>
+<string>Habesha Streams needs camera access so you can broadcast live video to your audience.</string>
+
+<key>NSMicrophoneUsageDescription</key>
+<string>Habesha Streams needs microphone access so your live broadcasts include audio.</string>
+
+<!--
+Photos library access is OPTIONAL — only needed if you ever pick from gallery.
+The Android side has it for screenshot detection; iOS handles screenshot
+detection differently (UIApplication.userDidTakeScreenshotNotification —
+no permission required) so this is commented out.
+
+<key>NSPhotoLibraryUsageDescription</key>
+<string>Habesha Streams needs photo library access to upload videos.</string>
+-->
+
+<!--
+Supported orientations: allow both portrait and landscape so users can
+broadcast in either. The plugin locks the orientation at stream-start time.
+-->
+<key>UISupportedInterfaceOrientations</key>
+<array>
+    <string>UIInterfaceOrientationPortrait</string>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+</array>

@@ -186,6 +186,70 @@ const RedeemTestCodeCard = ({ userId }: { userId?: string }) => {
   );
 };
 
+// ─── Become a Creator Card ───────────────────────────────────────────────────
+const BecomeCreatorCard = () => {
+  const { role, becomeCreator } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
+  const isCreator = role === "creator" || role === "admin";
+
+  const handleBecomeCreator = async () => {
+    setLoading(true);
+    const { error } = await becomeCreator();
+    if (error) {
+      toast({
+        title: "Could not enable creator mode",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "You're a creator!",
+        description: "Open the Creator dashboard to upload videos or go live.",
+      });
+    }
+    setLoading(false);
+  };
+
+  return (
+    <Card>
+      <h3 className="cinzel text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+        <Star className="w-4 h-4 text-gold" />
+        Creator Studio
+      </h3>
+      {isCreator ? (
+        <>
+          <p className="text-xs text-muted-foreground mb-3">
+            You can upload videos and go live.
+          </p>
+          <button
+            onClick={() => navigate("/creator")}
+            className="w-full py-2.5 gradient-gold text-primary-foreground text-sm font-bold rounded-sm hover:opacity-90 transition-all flex items-center justify-center gap-2"
+          >
+            <Film className="w-3.5 h-3.5" />
+            Open Creator Dashboard
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-muted-foreground mb-3">
+            Share your own videos and go live to your audience. Activate creator mode in one tap.
+          </p>
+          <button
+            onClick={handleBecomeCreator}
+            disabled={loading}
+            className="w-full py-2.5 gradient-gold text-primary-foreground text-sm font-bold rounded-sm hover:opacity-90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Star className="w-3.5 h-3.5" />}
+            Become a Creator
+          </button>
+        </>
+      )}
+    </Card>
+  );
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // TAB COMPONENTS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -418,6 +482,8 @@ const ProfileTab = ({ user, profile, refreshProfile }: { user: any; profile: any
               className="w-full bg-surface-raised border border-gold/10 rounded-sm px-3 py-2 text-sm text-foreground focus:outline-none focus:border-gold/40 transition-colors"
             />
           </Card>
+
+          <BecomeCreatorCard />
 
           <RedeemTestCodeCard userId={user?.id} />
         </div>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Habesha Streams</string>
+    <string name="title_activity_main">Habesha Streams</string>
+    <string name="package_name">com.habeshastreams.app</string>
+    <string name="custom_url_scheme">com.habeshastreams.app</string>
+</resources>
