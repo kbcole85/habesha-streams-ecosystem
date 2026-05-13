@@ -20,6 +20,7 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import RefundPolicy from "./pages/RefundPolicy";
 import CookiePolicy from "./pages/CookiePolicy";
+import DeleteAccount from "./pages/DeleteAccount";
 import SubscriptionSuccess from "./pages/SubscriptionSuccess";
 import Live from "./pages/Live";
 import GoLive from "./pages/GoLive";
@@ -118,6 +119,7 @@ const AppRoutes = () => {
       <Route path="/terms" element={<Terms />} />
       <Route path="/refund-policy" element={<RefundPolicy />} />
       <Route path="/cookies" element={<CookiePolicy />} />
+      <Route path="/delete-account" element={<DeleteAccount />} />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />
     </Routes>
