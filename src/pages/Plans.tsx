@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import { openExternal } from "@/lib/openExternal";
 
 const faqs = [
   { q: "Can I cancel anytime?", a: "Yes. Cancel any time from your account settings or via the Stripe billing portal. No cancellation fees, ever." },
@@ -61,7 +62,7 @@ const Plans = () => {
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout");
       if (error) throw error;
-      if (data?.url) window.open(data.url, "_blank");
+      if (data?.url) await openExternal(data.url);
     } catch (err) {
       toast({ title: "Checkout failed", description: String(err), variant: "destructive" });
     }
@@ -73,7 +74,7 @@ const Plans = () => {
     try {
       const { data, error } = await supabase.functions.invoke("customer-portal");
       if (error) throw error;
-      if (data?.url) window.open(data.url, "_blank");
+      if (data?.url) await openExternal(data.url);
     } catch (err) {
       toast({ title: "Billing portal failed", description: String(err), variant: "destructive" });
     }

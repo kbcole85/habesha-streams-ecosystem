@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import PPVCheckoutButton from "@/components/PPVCheckoutButton";
 import VideoPlayer, { type SubtitleTrack } from "@/components/VideoPlayer";
 import { useScreenProtection } from "@/hooks/useScreenProtection";
+import { openExternal } from "@/lib/openExternal";
 
 /* ──────────────── Paywall Overlay ──────────────── */
 
@@ -25,7 +26,7 @@ const PaywallOverlay = ({ isPastDue, contentTitle }: { isPastDue: boolean; conte
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout");
       if (error) throw error;
-      if (data?.url) window.open(data.url, "_blank");
+      if (data?.url) await openExternal(data.url);
     } catch (err) {
       toast({ title: "Checkout failed", description: String(err), variant: "destructive" });
     }
@@ -36,7 +37,7 @@ const PaywallOverlay = ({ isPastDue, contentTitle }: { isPastDue: boolean; conte
     try {
       const { data, error } = await supabase.functions.invoke("customer-portal");
       if (error) throw error;
-      if (data?.url) window.open(data.url, "_blank");
+      if (data?.url) await openExternal(data.url);
     } catch (err) {
       toast({ title: "Billing portal failed", description: String(err), variant: "destructive" });
     }

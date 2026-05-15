@@ -4,6 +4,7 @@ import { Ticket, Loader2, Lock, Tv } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { openExternal } from "@/lib/openExternal";
 
 // The PPV price created in Stripe ($7.99 one-time)
 const PPV_PRICE_ID = "price_1T2VfO3FkY3jsYkVTAefEwLo";
@@ -36,7 +37,7 @@ const PPVCheckoutButton = ({ eventTitle, videoId, variant = "card", className = 
         body: { priceId: PPV_PRICE_ID, eventTitle, videoId },
       });
       if (error) throw error;
-      if (data?.url) window.open(data.url, "_blank");
+      if (data?.url) await openExternal(data.url);
     } catch (err) {
       toast({
         title: "Purchase failed",

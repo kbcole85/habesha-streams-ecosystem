@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
+import { openExternal } from "@/lib/openExternal";
 import thumb1 from "@/assets/thumb-1.jpg";
 import thumb2 from "@/assets/thumb-2.jpg";
 import thumb3 from "@/assets/thumb-3.jpg";
@@ -67,7 +68,7 @@ const SubscriptionTab = ({
     try {
       const { data, error } = await supabase.functions.invoke("customer-portal");
       if (error) throw error;
-      if (data?.url) window.open(data.url, "_blank");
+      if (data?.url) await openExternal(data.url);
     } catch (err) {
       toast({ title: "Billing portal error", description: String(err), variant: "destructive" });
     }

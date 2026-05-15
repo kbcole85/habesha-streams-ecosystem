@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { openExternal } from "@/lib/openExternal";
 import {
   User, CreditCard, Clock, Bookmark, Monitor, Bell,
   Shield, LogOut, Edit, Play, Star, Check, AlertCircle,
@@ -587,7 +588,7 @@ const SubscriptionTab = ({ stripeSubscription, checkSubscription }: { stripeSubs
     try {
       const { data, error } = await supabase.functions.invoke("customer-portal");
       if (error) throw error;
-      if (data?.url) window.open(data.url, "_blank");
+      if (data?.url) await openExternal(data.url);
     } catch (err) {
       toast({ title: "Billing portal error", description: String(err), variant: "destructive" });
     }
@@ -601,7 +602,7 @@ const SubscriptionTab = ({ stripeSubscription, checkSubscription }: { stripeSubs
         body: { priceId: MONTHLY_PLAN.priceId, planName: "monthly" },
       });
       if (error) throw error;
-      if (data?.url) window.open(data.url, "_blank");
+      if (data?.url) await openExternal(data.url);
     } catch (err) {
       toast({ title: "Checkout failed", description: String(err), variant: "destructive" });
     }
@@ -887,7 +888,7 @@ const PaymentMethodsTab = () => {
           Payment management is handled securely via{" "}
           <button onClick={async () => {
             const { data } = await supabase.functions.invoke("customer-portal");
-            if (data?.url) window.open(data.url, "_blank");
+            if (data?.url) await openExternal(data.url);
           }} className="text-gold hover:underline">Stripe Billing Portal</button>
         </p>
       </div>
